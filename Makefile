@@ -1,0 +1,3 @@
+test:
+	cd tests && go generate
+	go test ./...
