@@ -10,20 +10,19 @@ type Item generic.Type
 //       This is fairly inefficient, especially for large arrays.
 //       The goal is to make it based on tries like the Clojure implementation.
 type ItemArray struct {
-	tail []Item
-	root privateItemNode
-	len uint
+	tail  []Item
+	root  privateItemNode
+	len   uint
 	shift uint
 }
-
 
 // The "private" prefix is there just for Genny to match on the type name "Item"
 // but we don't want to expose this type outside the package.
 
-
 type privateItemNode interface{}
 
 var emptyItemNode privateItemNode = nil
+
 const privateItemshift = 5
 const privateItemNodeSize = 32
 
@@ -38,7 +37,24 @@ func NewItemArray(items ...Item) *ItemArray {
 }
 
 func (a *ItemArray) Get(i int) Item {
-	return a.tail[i]
+	if i < 0 || uint(i) > a.len {
+		panic("Index out of bounds")
+	}
+
+	return a.arrayFor(uint(i))[i&0x1F]
+}
+
+func (a *ItemArray) arrayFor(i uint) []Item {
+	if i >= a.tailOffset() {
+		return a.tail
+	}
+
+	node := a.root
+	for level := a.shift; level > 0; level -= privateItemshift {
+		node = node.([]privateItemNode)[(i>>level)&0x1F]
+	}
+
+	return node.([]Item)
 }
 
 func (a *ItemArray) tailOffset() uint {
@@ -53,7 +69,7 @@ func (a *ItemArray) Set(i int, item Item) *ItemArray {
 	dst := make([]Item, len(a.tail))
 	copy(dst, a.tail)
 	dst[i] = item
-	return &ItemArray{root: a.root, tail: dst}
+	return &ItemArray{root: a.root, tail: dst, shift: a.shift, len: a.len}
 }
 
 func newItemPath(shift uint, node privateItemNode) privateItemNode {
@@ -61,7 +77,7 @@ func newItemPath(shift uint, node privateItemNode) privateItemNode {
 		return node
 	}
 
-	return newItemPath(shift - 5, privateItemNode([]privateItemNode{node}))
+	return newItemPath(shift-5, privateItemNode([]privateItemNode{node}))
 }
 
 func (a *ItemArray) pushTail(level uint, parent privateItemNode, tailNode []Item) privateItemNode {
@@ -87,8 +103,8 @@ func (a *ItemArray) pushTail(level uint, parent privateItemNode, tailNode []Item
 
 // TODO: Should take variadic arguments
 func (a *ItemArray) Append(item Item) *ItemArray {
-	if a.len - a.tailOffset() < 32 {
-		newTail := make([]Item, len(a.tail) + 1)
+	if a.len-a.tailOffset() < 32 {
+		newTail := make([]Item, len(a.tail)+1)
 		copy(newTail, a.tail)
 		newTail[len(a.tail)] = item
 		return &ItemArray{root: a.root, tail: newTail, len: a.len + 1, shift: a.shift}
