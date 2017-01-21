@@ -10,57 +10,58 @@ type Item generic.Type
 //       This is fairly inefficient, especially for large arrays.
 //       The goal is to make it based on tries like the Clojure implementation.
 type ItemArray struct {
-	array []Item
-	/*
-	tail [privateItemNodeSize]Item
+	tail []Item
 	root privateItemNode
-	*/
 }
 
 
 // The "private" prefix is there just for Genny to match on the type name "Item"
 // but we don't want to expose this type outside the package.
 
-/*
+
 type privateItemNode struct {
 	children interface{}
 	depth int
 }
-*/
 
-/*
+
+var emptyItemNode privateItemNode = privateItemNode{}
 const privateItemshift = 5
 const privateItemNodeSize = 32
-*/
+
 
 
 func NewItemArray(items ...Item) *ItemArray {
-	dst := make([]Item, len(items))
-	copy(dst, items)
-	return &ItemArray{array: dst}
+	if len(items) < privateItemNodeSize {
+		tail := make([]Item, len(items))
+		copy(tail, items)
+		return &ItemArray{root: emptyItemNode, tail: tail}
+	}
+
+	panic("Not implemented yet")
 }
 
 func (a *ItemArray) Get(i int) Item {
-	return a.array[i]
+	return a.tail[i]
 }
 
 func (a *ItemArray) Set(i int, item Item) *ItemArray {
-	dst := make([]Item, len(a.array))
-	copy(dst, a.array)
+	dst := make([]Item, len(a.tail))
+	copy(dst, a.tail)
 	dst[i] = item
-	return &ItemArray{array: dst}
+	return &ItemArray{root: a.root, tail: dst}
 }
 
 func (a *ItemArray) Append(item Item) *ItemArray {
-	dst := make([]Item, len(a.array), len(a.array) + 1)
-	copy(dst, a.array)
-	return &ItemArray{array: append(dst, item)}
+	dst := make([]Item, len(a.tail), len(a.tail) + 1)
+	copy(dst, a.tail)
+	return &ItemArray{root: a.root, tail: append(dst, item)}
 }
 
 func (a *ItemArray) Slice(start, stop int) *ItemArray {
-	return &ItemArray{array: a.array[start:stop]}
+	return &ItemArray{root: a.root, tail: a.tail[start:stop]}
 }
 
 func (a *ItemArray) Len() int {
-	return len(a.array)
+	return len(a.tail)
 }
