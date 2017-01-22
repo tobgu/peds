@@ -30,7 +30,7 @@ func NewItemArray(items ...Item) *ItemArray {
 	if len(items) < privateItemNodeSize {
 		tail := make([]Item, len(items))
 		copy(tail, items)
-		return &ItemArray{root: emptyItemNode, tail: tail, len: uint(len(tail))}
+		return &ItemArray{root: emptyItemNode, tail: tail, len: uint(len(tail)), shift: privateItemshift}
 	}
 
 	panic("Not implemented yet")
@@ -66,10 +66,33 @@ func (a *ItemArray) tailOffset() uint {
 }
 
 func (a *ItemArray) Set(i int, item Item) *ItemArray {
-	dst := make([]Item, len(a.tail))
-	copy(dst, a.tail)
-	dst[i] = item
-	return &ItemArray{root: a.root, tail: dst, shift: a.shift, len: a.len}
+	if i < 0 || uint(i) >= a.len {
+		panic("Index out of bounds")
+	}
+
+	if uint(i) >= a.tailOffset() {
+		newTail := make([]Item, len(a.tail))
+		copy(newTail, a.tail)
+		newTail[i & 0x01f] = item
+		return &ItemArray{root: a.root, tail: newTail, len: a.len, shift: a.shift}
+	}
+
+	return &ItemArray{root: a.doAssoc(a.shift, a.root, uint(i), item), tail: a.tail, len: a.len, shift: a.shift}
+}
+
+func (a *ItemArray) doAssoc(level uint, node privateItemNode, i uint, item Item) privateItemNode {
+	if level == 0 {
+		ret := make([]Item, privateItemNodeSize)
+		copy(ret, node.([]Item))
+		ret[i & 0x01f] = item
+		return ret
+	}
+
+	ret := make([]privateItemNode, privateItemNodeSize)
+	copy(ret, node.([]privateItemNode))
+	subidx := (i >> level) & 0x01F
+	ret[subidx] = a.doAssoc(level - privateItemshift, ret[subidx], i, item)
+	return ret
 }
 
 func newItemPath(shift uint, node privateItemNode) privateItemNode {
@@ -77,7 +100,7 @@ func newItemPath(shift uint, node privateItemNode) privateItemNode {
 		return node
 	}
 
-	return newItemPath(shift-5, privateItemNode([]privateItemNode{node}))
+	return newItemPath(shift-privateItemshift, privateItemNode([]privateItemNode{node}))
 }
 
 func (a *ItemArray) pushTail(level uint, parent privateItemNode, tailNode []Item) privateItemNode {
