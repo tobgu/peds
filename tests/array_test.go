@@ -1,6 +1,9 @@
 package peds_testing
 
-import "testing"
+import (
+	"testing"
+	"fmt"
+)
 
 func assertEqual(t *testing.T, expected, actual int) {
 	if expected != actual {
@@ -8,23 +11,50 @@ func assertEqual(t *testing.T, expected, actual int) {
 	}
 }
 
-func TestPropertiesOfEmptyNewArray(t *testing.T) {
-	arr := NewIntArray()
-	assertEqual(t, 0, arr.Len())
+func inputArray(size int) []int {
+	result := make([]int, 0, size)
+	for i := 0; i < size; i++ {
+		result = append(result, i)
+	}
+
+	return result
 }
 
-func TestPropertiesOfNonEmptyNewArray(t *testing.T) {
-	arr := NewIntArray(1, 2, 3)
-	assertEqual(t, 3, arr.Len())
-	assertEqual(t, 2, int(arr.Get(1)))
+
+const maxSize = 2000
+
+func TestPropertiesOfNewArray(t *testing.T) {
+	for l := 0; l < maxSize; l++ {
+		t.Run(fmt.Sprintf("NewArray %d", l), func(t *testing.T) {
+			arr :=  NewIntArray(inputArray(l)...)
+			assertEqual(t, arr.Len(), l)
+			for i := 0; i < l; i++ {
+				assertEqual(t, i, arr.Get(i))
+			}
+		})
+	}
 }
 
-func TestSetDoesNotModifyOriginalArray(t *testing.T) {
-	arr := NewIntArray(1, 2, 3)
-	arr2 := arr.Set(1, 5)
-	assertEqual(t, 2, arr.Get(1))
-	assertEqual(t, 5, arr2.Get(1))
+
+func TestSetItem(t *testing.T) {
+	for l := 0; l < maxSize; l++ {
+		t.Run(fmt.Sprintf("Set %d", l), func(t *testing.T) {
+			arr :=  NewIntArray(inputArray(l)...)
+			for i := 0; i < l; i++ {
+				newArr := arr.Set(i, -i)
+				assertEqual(t, -i, newArr.Get(i))
+				assertEqual(t, i, arr.Get(i))
+			}
+		})
+	}
 }
+
+
+// TODO:
+// - Set on large arrays
+// - Append on large arrays
+// - Array with no tail
+// - Error cases...
 
 func TestAppendDoesNotModifyOriginalArray(t *testing.T) {
 	arr := NewIntArray(1, 2, 3)

@@ -21,19 +21,40 @@ type ItemArray struct {
 
 type privateItemNode interface{}
 
-var emptyItemNode privateItemNode = nil
+var emptyItemNode privateItemNode = []privateItemNode{}
+
+/*
+const privateItemshift = 5
+const privateItemNodeSize = 32
+const privateItemBitMask = 0x1F
+*/
 
 const privateItemshift = 5
 const privateItemNodeSize = 32
+const privateItemBitMask = 0x1F
 
 func NewItemArray(items ...Item) *ItemArray {
-	if len(items) < privateItemNodeSize {
-		tail := make([]Item, len(items))
-		copy(tail, items)
-		return &ItemArray{root: emptyItemNode, tail: tail, len: uint(len(tail)), shift: privateItemshift}
+	itemsLen := len(items)
+	tailLen := itemsLen % privateItemNodeSize
+	if tailLen == 0 && itemsLen > 0 {
+		tailLen = privateItemNodeSize
 	}
 
-	panic("Not implemented yet")
+	baseLen := itemsLen - tailLen
+	result := &ItemArray{root: emptyItemNode, shift: privateItemshift}
+	for i := 0; i < baseLen; i += privateItemNodeSize {
+		leafNode := make([]Item, privateItemNodeSize)
+		copy(leafNode, items[i:i+privateItemNodeSize])
+		result.len += privateItemNodeSize
+		result = result.pushLeafNode(leafNode)
+	}
+
+
+	tail := make([]Item, tailLen)
+	copy(tail, items[baseLen:])
+	result.tail = tail
+	result.len += uint(tailLen)
+	return result
 }
 
 func (a *ItemArray) Get(i int) Item {
@@ -41,7 +62,7 @@ func (a *ItemArray) Get(i int) Item {
 		panic("Index out of bounds")
 	}
 
-	return a.arrayFor(uint(i))[i&0x1F]
+	return a.arrayFor(uint(i))[i&privateItemBitMask]
 }
 
 func (a *ItemArray) arrayFor(i uint) []Item {
@@ -51,14 +72,14 @@ func (a *ItemArray) arrayFor(i uint) []Item {
 
 	node := a.root
 	for level := a.shift; level > 0; level -= privateItemshift {
-		node = node.([]privateItemNode)[(i>>level)&0x1F]
+		node = node.([]privateItemNode)[(i>>level)&privateItemBitMask]
 	}
 
 	return node.([]Item)
 }
 
 func (a *ItemArray) tailOffset() uint {
-	if a.len < 32 {
+	if a.len < privateItemNodeSize {
 		return 0
 	}
 
@@ -73,7 +94,7 @@ func (a *ItemArray) Set(i int, item Item) *ItemArray {
 	if uint(i) >= a.tailOffset() {
 		newTail := make([]Item, len(a.tail))
 		copy(newTail, a.tail)
-		newTail[i & 0x01f] = item
+		newTail[i&privateItemBitMask] = item
 		return &ItemArray{root: a.root, tail: newTail, len: a.len, shift: a.shift}
 	}
 
@@ -84,14 +105,14 @@ func (a *ItemArray) doAssoc(level uint, node privateItemNode, i uint, item Item)
 	if level == 0 {
 		ret := make([]Item, privateItemNodeSize)
 		copy(ret, node.([]Item))
-		ret[i & 0x01f] = item
+		ret[i&privateItemBitMask] = item
 		return ret
 	}
 
 	ret := make([]privateItemNode, privateItemNodeSize)
 	copy(ret, node.([]privateItemNode))
-	subidx := (i >> level) & 0x01F
-	ret[subidx] = a.doAssoc(level - privateItemshift, ret[subidx], i, item)
+	subidx := (i >> level) & privateItemBitMask
+	ret[subidx] = a.doAssoc(level-privateItemshift, ret[subidx], i, item)
 	return ret
 }
 
@@ -104,7 +125,7 @@ func newItemPath(shift uint, node privateItemNode) privateItemNode {
 }
 
 func (a *ItemArray) pushTail(level uint, parent privateItemNode, tailNode []Item) privateItemNode {
-	subIdx := ((a.len - 1) >> level) & 0x01F
+	subIdx := ((a.len - 1) >> level) & privateItemBitMask
 	parentNode := parent.([]privateItemNode)
 	ret := make([]privateItemNode, subIdx+1)
 	copy(ret, parentNode)
@@ -114,9 +135,9 @@ func (a *ItemArray) pushTail(level uint, parent privateItemNode, tailNode []Item
 		nodeToInsert = tailNode
 	} else {
 		if subIdx < uint(len(parentNode)) {
-			nodeToInsert = newItemPath(level-privateItemshift, tailNode)
-		} else {
 			nodeToInsert = a.pushTail(level-privateItemshift, parentNode[subIdx], tailNode)
+		} else {
+			nodeToInsert = newItemPath(level-privateItemshift, tailNode)
 		}
 	}
 
@@ -126,7 +147,7 @@ func (a *ItemArray) pushTail(level uint, parent privateItemNode, tailNode []Item
 
 // TODO: Should take variadic arguments
 func (a *ItemArray) Append(item Item) *ItemArray {
-	if a.len-a.tailOffset() < 32 {
+	if a.len-a.tailOffset() < privateItemNodeSize {
 		newTail := make([]Item, len(a.tail)+1)
 		copy(newTail, a.tail)
 		newTail[len(a.tail)] = item
@@ -134,19 +155,26 @@ func (a *ItemArray) Append(item Item) *ItemArray {
 	}
 
 	// Tail full, push into tree
+	result := a.pushLeafNode(a.tail)
+	result.tail = []Item{item}
+	result.len = a.len + 1
+	return result
+}
+
+func (a *ItemArray) pushLeafNode(node []Item) *ItemArray {
 	var newRoot privateItemNode
 	newShift := a.shift
 
 	// Root overflow?
 	if (a.len >> privateItemshift) > (1 << a.shift) {
-		newNode := newItemPath(a.shift, a.tail)
+		newNode := newItemPath(a.shift, node)
 		newRoot = privateItemNode([]privateItemNode{a.root, newNode})
 		newShift = a.shift + privateItemshift
 	} else {
-		newRoot = a.pushTail(a.shift, a.root, a.tail)
+		newRoot = a.pushTail(a.shift, a.root, node)
 	}
 
-	return &ItemArray{root: newRoot, tail: []Item{item}, len: a.len + 1, shift: newShift}
+	return &ItemArray{root: newRoot, tail: a.tail, len: a.len, shift: newShift}
 }
 
 func (a *ItemArray) Slice(start, stop int) *ItemArray {
