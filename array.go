@@ -22,6 +22,8 @@ type ItemArray struct {
 type privateItemNode interface{}
 
 var emptyItemNode privateItemNode = []privateItemNode{}
+var emptyItemTail = make([]Item, 0)
+var emptyItemArray *ItemArray = &ItemArray{root: emptyItemNode, shift: privateItemshift, tail: emptyItemTail}
 
 /*
 const privateItemshift = 5
@@ -34,27 +36,7 @@ const privateItemNodeSize = 32
 const privateItemBitMask = 0x1F
 
 func NewItemArray(items ...Item) *ItemArray {
-	itemsLen := len(items)
-	tailLen := itemsLen % privateItemNodeSize
-	if tailLen == 0 && itemsLen > 0 {
-		tailLen = privateItemNodeSize
-	}
-
-	baseLen := itemsLen - tailLen
-	result := &ItemArray{root: emptyItemNode, shift: privateItemshift}
-	for i := 0; i < baseLen; i += privateItemNodeSize {
-		leafNode := make([]Item, privateItemNodeSize)
-		copy(leafNode, items[i:i+privateItemNodeSize])
-		result.len += privateItemNodeSize
-		result = result.pushLeafNode(leafNode)
-	}
-
-
-	tail := make([]Item, tailLen)
-	copy(tail, items[baseLen:])
-	result.tail = tail
-	result.len += uint(tailLen)
-	return result
+	return emptyItemArray.Append(items...)
 }
 
 func (a *ItemArray) Get(i int) Item {
@@ -133,31 +115,45 @@ func (a *ItemArray) pushTail(level uint, parent privateItemNode, tailNode []Item
 
 	if level == privateItemshift {
 		nodeToInsert = tailNode
+	} else if subIdx < uint(len(parentNode)) {
+		nodeToInsert = a.pushTail(level-privateItemshift, parentNode[subIdx], tailNode)
 	} else {
-		if subIdx < uint(len(parentNode)) {
-			nodeToInsert = a.pushTail(level-privateItemshift, parentNode[subIdx], tailNode)
-		} else {
-			nodeToInsert = newItemPath(level-privateItemshift, tailNode)
-		}
+		nodeToInsert = newItemPath(level-privateItemshift, tailNode)
 	}
 
 	ret[subIdx] = nodeToInsert
 	return ret
 }
 
-// TODO: Should take variadic arguments
-func (a *ItemArray) Append(item Item) *ItemArray {
-	if a.len-a.tailOffset() < privateItemNodeSize {
-		newTail := make([]Item, len(a.tail)+1)
-		copy(newTail, a.tail)
-		newTail[len(a.tail)] = item
-		return &ItemArray{root: a.root, tail: newTail, len: a.len + 1, shift: a.shift}
+func uintItemMin(a, b uint) uint {
+	if a < b {
+		return a
 	}
 
-	// Tail full, push into tree
-	result := a.pushLeafNode(a.tail)
-	result.tail = []Item{item}
-	result.len = a.len + 1
+	return b
+}
+
+func (a *ItemArray) Append(item... Item) *ItemArray {
+	result := a
+	itemLen := uint(len(item))
+	for insertOffset := uint(0); insertOffset < itemLen; {
+		tailLen := result.len-result.tailOffset()
+		tailFree := privateItemNodeSize - tailLen
+		if tailFree == 0 {
+			result = result.pushLeafNode(result.tail)
+			result.tail = emptyItemArray.tail
+			tailFree = privateItemNodeSize
+			tailLen = 0
+		}
+
+		batchLen := uintItemMin(itemLen - insertOffset, tailFree)
+		newTail := make([]Item, 0, tailLen+batchLen)
+		newTail = append(newTail, result.tail...)
+		newTail = append(newTail, item[insertOffset:insertOffset+batchLen]...)
+		result = &ItemArray{root: result.root, tail: newTail, len: result.len + batchLen, shift: result.shift}
+		insertOffset += batchLen
+	}
+
 	return result
 }
 
