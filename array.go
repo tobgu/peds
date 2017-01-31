@@ -2,13 +2,18 @@ package peds
 
 import (
 	"github.com/cheekybits/genny/generic"
+	"fmt"
 )
 
+// Genny generic type. Will be replaced by concrete implementation upon code generation.
+// See https://github.com/cheekybits/genny
 type Item generic.Type
 
-// TODO: Right now this is a copy on write implementation based on an underlying slice.
-//       This is fairly inefficient, especially for large arrays.
-//       The goal is to make it based on tries like the Clojure implementation.
+
+/////////////
+/// Array ///
+/////////////
+
 type ItemArray struct {
 	tail  []Item
 	root  privateItemNode
@@ -24,12 +29,6 @@ type privateItemNode interface{}
 var emptyItemNode privateItemNode = []privateItemNode{}
 var emptyItemTail = make([]Item, 0)
 var emptyItemArray *ItemArray = &ItemArray{root: emptyItemNode, shift: privateItemshift, tail: emptyItemTail}
-
-/*
-const privateItemshift = 5
-const privateItemNodeSize = 32
-const privateItemBitMask = 0x1F
-*/
 
 const privateItemshift = 5
 const privateItemNodeSize = 32
@@ -173,10 +172,117 @@ func (a *ItemArray) pushLeafNode(node []Item) *ItemArray {
 	return &ItemArray{root: newRoot, tail: a.tail, len: a.len, shift: newShift}
 }
 
-func (a *ItemArray) Slice(start, stop int) *ItemArray {
-	return &ItemArray{root: a.root, tail: a.tail[start:stop], len: uint(stop - start), shift: a.shift}
+func assertItemSliceOk(start, stop, len int) {
+	if start < 0 {
+		panic(fmt.Sprintf("Invalid slice index %d (index must be non-negative)", start))
+	}
+
+	if start > stop {
+		panic(fmt.Sprintf("Invalide slice index: %d > %d", start, stop))
+	}
+
+	if stop > len {
+		panic(fmt.Sprintf("Slice bounds out of range, start=%d, stop=%d, len=%d", start, stop, len))
+	}
+}
+
+func (a *ItemArray) Slice(start, stop int) *ItemSlice {
+	assertItemSliceOk(start, stop, a.Len())
+	return &ItemSlice{array: a, start: start, stop: stop}
 }
 
 func (a *ItemArray) Len() int {
 	return int(a.len)
+}
+
+func (a *ItemArray) Iter() *ItemArrayIterator {
+	return newItemArrayIterator(a, 0, a.Len())
+}
+
+//////////////////
+//// Iterator ////
+//////////////////
+
+type ItemArrayIterator struct {
+	array *ItemArray
+	currentNode []Item
+	stop, pos int
+}
+
+func newItemArrayIterator(array *ItemArray, start, stop int) *ItemArrayIterator {
+	it := ItemArrayIterator{array: array, pos: start, stop: stop}
+	it.currentNode = array.arrayFor(uint(it.pos))
+	return &it
+}
+
+func (it *ItemArrayIterator) Next() (value Item, ok bool) {
+	if it.pos >= it.stop {
+		return value, false
+	}
+
+	if it.pos & privateItemBitMask == 0 {
+		it.currentNode = it.array.arrayFor(uint(it.pos))
+	}
+
+	value = it.currentNode[it.pos&privateItemBitMask]
+	it.pos++
+	return value, true
+}
+
+////////////////
+//// Slice /////
+////////////////
+
+type ItemSlice struct {
+	array  *ItemArray
+	start, stop int
+}
+
+func NewItemSlice(items ...Item) *ItemSlice {
+	return &ItemSlice{array: emptyItemArray.Append(items...), start: 0, stop: len(items)}
+}
+
+func (s *ItemSlice) Len() int {
+	return s.stop - s.start
+}
+
+func (s *ItemSlice) Get(i int) Item {
+	if i < 0 || s.start + i >= s.stop {
+		panic("Index out of bounds")
+	}
+
+	return s.array.Get(s.start + i)
+}
+
+func (s *ItemSlice) Set(i int, item Item) *ItemSlice {
+	if i < 0 || s.start + i >= s.stop {
+		panic("Index out of bounds")
+	}
+
+	return s.array.Set(s.start+i, item).Slice(s.start, s.stop)
+}
+
+func (s *ItemSlice) Append(items... Item) *ItemSlice {
+	newSlice := ItemSlice{array: s.array, start: s.start, stop: s.stop + len(items)}
+
+	// If this is a slice that has an upper bound that is lower than the backing
+	// array then set the values in the backing array to achieve some structural
+	// sharing.
+	itemPos := 0
+	for ; s.stop + itemPos < s.array.Len() && itemPos < len(items); itemPos++ {
+		newSlice.array = newSlice.array.Set(s.stop + itemPos, items[itemPos])
+	}
+
+	// For the rest just append it to the underlying array
+	newSlice.array = newSlice.array.Append(items[itemPos:]...)
+	return &newSlice
+}
+
+func (s *ItemSlice) Slice(start, stop int) *ItemSlice {
+	assertItemSliceOk(start, stop, s.stop-s.start)
+	return &ItemSlice{array: s.array, start: s.start + start, stop: s.start + stop}
+}
+
+func (s *ItemSlice) Iter() *ItemArrayIterator {
+	return newItemArrayIterator(s.array, s.start, s.stop)
 }

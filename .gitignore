@@ -1,2 +1,3 @@
 *_gen.go
 .idea
+coverage.*
