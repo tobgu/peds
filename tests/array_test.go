@@ -1,9 +1,10 @@
 package peds_testing
 
 import (
-	"testing"
 	"fmt"
 	"runtime"
+	"strings"
+	"testing"
 )
 
 ///////////////
@@ -17,16 +18,28 @@ func assertEqual(t *testing.T, expected, actual int) {
 	}
 }
 
+func assertPanic(t *testing.T, expectedMsg string) {
+	if r := recover(); r == nil {
+		_, _, line, _ := runtime.Caller(1)
+		t.Errorf("Did not raise, line %d.", line)
+	} else {
+		msg := r.(string)
+		if !strings.Contains(msg, expectedMsg) {
+			t.Errorf("Msg '%s', did not contain '%s'", msg, expectedMsg)
+		}
+	}
+}
+
 func inputArray(start, size int) []int {
 	result := make([]int, 0, size)
-	for i := start; i < start + size; i++ {
+	for i := start; i < start+size; i++ {
 		result = append(result, i)
 	}
 
 	return result
 }
 
-var testSizes = []int{0,1,20,32,33,50,500,32*32,32*32+1,10000,32*32*32,32*32*32+1}
+var testSizes = []int{0, 1, 20, 32, 33, 50, 500, 32 * 32, 32*32 + 1, 10000, 32 * 32 * 32, 32*32*32 + 1}
 
 /////////////
 /// Array ///
@@ -35,7 +48,7 @@ var testSizes = []int{0,1,20,32,33,50,500,32*32,32*32+1,10000,32*32*32,32*32*32+
 func TestPropertiesOfNewArray(t *testing.T) {
 	for _, l := range testSizes {
 		t.Run(fmt.Sprintf("NewArray %d", l), func(t *testing.T) {
-			arr :=  NewIntArray(inputArray(0, l)...)
+			arr := NewIntArray(inputArray(0, l)...)
 			assertEqual(t, arr.Len(), l)
 			for i := 0; i < l; i++ {
 				assertEqual(t, i, arr.Get(i))
@@ -47,7 +60,7 @@ func TestPropertiesOfNewArray(t *testing.T) {
 func TestSetItem(t *testing.T) {
 	for _, l := range testSizes {
 		t.Run(fmt.Sprintf("Set %d", l), func(t *testing.T) {
-			arr :=  NewIntArray(inputArray(0, l)...)
+			arr := NewIntArray(inputArray(0, l)...)
 			for i := 0; i < l; i++ {
 				newArr := arr.Set(i, -i)
 				assertEqual(t, -i, newArr.Get(i))
@@ -59,7 +72,7 @@ func TestSetItem(t *testing.T) {
 
 func TestAppend(t *testing.T) {
 	for _, l := range testSizes {
-		arr :=  NewIntArray(inputArray(0, l)...)
+		arr := NewIntArray(inputArray(0, l)...)
 		t.Run(fmt.Sprintf("Append %d", l), func(t *testing.T) {
 			for i := 0; i < 70; i++ {
 				newArr := arr.Append(inputArray(l, i)...)
@@ -75,9 +88,48 @@ func TestAppend(t *testing.T) {
 	}
 }
 
-/////////////////
-/// Iteration ///
-/////////////////
+func TestArraySetOutOfBoundsNegative(t *testing.T) {
+	defer assertPanic(t, "Index out of bounds")
+	NewIntArray(inputArray(0, 10)...).Set(-1, 0)
+}
+
+func TestArraySetOutOfBoundsBeyondEnd(t *testing.T) {
+	defer assertPanic(t, "Index out of bounds")
+	NewIntArray(inputArray(0, 10)...).Set(10, 0)
+}
+
+func TestArrayGetOutOfBoundsNegative(t *testing.T) {
+	defer assertPanic(t, "Index out of bounds")
+	NewIntArray(inputArray(0, 10)...).Get(-1)
+}
+
+func TestArrayGetOutOfBoundsBeyondEnd(t *testing.T) {
+	defer assertPanic(t, "Index out of bounds")
+	NewIntArray(inputArray(0, 10)...).Get(10)
+}
+
+func TestArraySliceOutOfBounds(t *testing.T) {
+	tests := []struct {
+		start, stop int
+		msg         string
+	}{
+		{-1, 3, "Invalid slice index"},
+		{0, 11, "Slice bounds out of range"},
+		{5, 3, "Invalid slice index"},
+	}
+
+	for _, s := range tests {
+		t.Run(fmt.Sprintf("start=%d, stop=%d", s.start, s.stop), func(t *testing.T) {
+			defer assertPanic(t, s.msg)
+			NewIntArray(inputArray(0, 10)...).Slice(s.start, s.stop)
+		})
+	}
+}
+
+////////////////
+/// Iterator ///
+////////////////
+
 func TestIteration(t *testing.T) {
 	input := inputArray(0, 10000)
 	arr := NewIntArray(input...)
@@ -92,7 +144,6 @@ func TestIteration(t *testing.T) {
 	assertEqual(t, input[5000], dst[5000])
 	assertEqual(t, input[9999], dst[9999])
 }
-
 
 /////////////
 /// Slice ///
@@ -116,7 +167,7 @@ func TestSliceIndexes(t *testing.T) {
 
 func TestSliceCreation(t *testing.T) {
 	sliceLen := 10000
-	slice :=  NewIntSlice(inputArray(0, sliceLen)...)
+	slice := NewIntSlice(inputArray(0, sliceLen)...)
 	assertEqual(t, slice.Len(), sliceLen)
 	for i := 0; i < sliceLen; i++ {
 		assertEqual(t, i, slice.Get(i))
@@ -196,10 +247,47 @@ func TestSliceIteration(t *testing.T) {
 	assertEqual(t, 199, dst[194])
 }
 
+func TestSliceSetOutOfBoundsNegative(t *testing.T) {
+	defer assertPanic(t, "Index out of bounds")
+	NewIntArray(inputArray(0, 10)...).Slice(2, 5).Set(-1, 0)
+}
+
+func TestSliceSetOutOfBoundsBeyondEnd(t *testing.T) {
+	defer assertPanic(t, "Index out of bounds")
+	NewIntArray(inputArray(0, 10)...).Slice(2, 5).Set(4, 0)
+}
+
+func TestSliceGetOutOfBoundsNegative(t *testing.T) {
+	defer assertPanic(t, "Index out of bounds")
+	NewIntArray(inputArray(0, 10)...).Slice(2, 5).Get(-1)
+}
+
+func TestSliceGetOutOfBoundsBeyondEnd(t *testing.T) {
+	defer assertPanic(t, "Index out of bounds")
+	NewIntArray(inputArray(0, 10)...).Slice(2, 5).Get(4)
+}
+
+func TestSliceSliceOutOfBounds(t *testing.T) {
+	tests := []struct {
+		start, stop int
+		msg         string
+	}{
+		{-1, 3, "Invalid slice index"},
+		{0, 4, "Slice bounds out of range"},
+		{3, 2, "Invalid slice index"},
+	}
+
+	for _, s := range tests {
+		t.Run(fmt.Sprintf("start=%d, stop=%d", s.start, s.stop), func(t *testing.T) {
+			defer assertPanic(t, s.msg)
+			NewIntArray(inputArray(0, 10)...).Slice(2, 5).Slice(s.start, s.stop)
+		})
+	}
+}
 
 // TODO:
-// - Test error cases, index out of bounds, etc.
-// - Document public methods
+// - Document public types and methods
+// - Expand README with examples
 
 //////////////////////
 ///// Benchmarks /////

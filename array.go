@@ -1,14 +1,13 @@
 package peds
 
 import (
-	"github.com/cheekybits/genny/generic"
 	"fmt"
+	"github.com/cheekybits/genny/generic"
 )
 
 // Genny generic type. Will be replaced by concrete implementation upon code generation.
 // See https://github.com/cheekybits/genny
 type Item generic.Type
-
 
 /////////////
 /// Array ///
@@ -39,7 +38,7 @@ func NewItemArray(items ...Item) *ItemArray {
 }
 
 func (a *ItemArray) Get(i int) Item {
-	if i < 0 || uint(i) > a.len {
+	if i < 0 || uint(i) >= a.len {
 		panic("Index out of bounds")
 	}
 
@@ -132,11 +131,11 @@ func uintItemMin(a, b uint) uint {
 	return b
 }
 
-func (a *ItemArray) Append(item... Item) *ItemArray {
+func (a *ItemArray) Append(item ...Item) *ItemArray {
 	result := a
 	itemLen := uint(len(item))
 	for insertOffset := uint(0); insertOffset < itemLen; {
-		tailLen := result.len-result.tailOffset()
+		tailLen := result.len - result.tailOffset()
 		tailFree := privateItemNodeSize - tailLen
 		if tailFree == 0 {
 			result = result.pushLeafNode(result.tail)
@@ -145,7 +144,7 @@ func (a *ItemArray) Append(item... Item) *ItemArray {
 			tailLen = 0
 		}
 
-		batchLen := uintItemMin(itemLen - insertOffset, tailFree)
+		batchLen := uintItemMin(itemLen-insertOffset, tailFree)
 		newTail := make([]Item, 0, tailLen+batchLen)
 		newTail = append(newTail, result.tail...)
 		newTail = append(newTail, item[insertOffset:insertOffset+batchLen]...)
@@ -178,7 +177,7 @@ func assertItemSliceOk(start, stop, len int) {
 	}
 
 	if start > stop {
-		panic(fmt.Sprintf("Invalide slice index: %d > %d", start, stop))
+		panic(fmt.Sprintf("Invalid slice index: %d > %d", start, stop))
 	}
 
 	if stop > len {
@@ -204,9 +203,9 @@ func (a *ItemArray) Iter() *ItemArrayIterator {
 //////////////////
 
 type ItemArrayIterator struct {
-	array *ItemArray
+	array       *ItemArray
 	currentNode []Item
-	stop, pos int
+	stop, pos   int
 }
 
 func newItemArrayIterator(array *ItemArray, start, stop int) *ItemArrayIterator {
@@ -220,7 +219,7 @@ func (it *ItemArrayIterator) Next() (value Item, ok bool) {
 		return value, false
 	}
 
-	if it.pos & privateItemBitMask == 0 {
+	if it.pos&privateItemBitMask == 0 {
 		it.currentNode = it.array.arrayFor(uint(it.pos))
 	}
 
@@ -234,7 +233,7 @@ func (it *ItemArrayIterator) Next() (value Item, ok bool) {
 ////////////////
 
 type ItemSlice struct {
-	array  *ItemArray
+	array       *ItemArray
 	start, stop int
 }
 
@@ -247,7 +246,7 @@ func (s *ItemSlice) Len() int {
 }
 
 func (s *ItemSlice) Get(i int) Item {
-	if i < 0 || s.start + i >= s.stop {
+	if i < 0 || s.start+i >= s.stop {
 		panic("Index out of bounds")
 	}
 
@@ -255,22 +254,22 @@ func (s *ItemSlice) Get(i int) Item {
 }
 
 func (s *ItemSlice) Set(i int, item Item) *ItemSlice {
-	if i < 0 || s.start + i >= s.stop {
+	if i < 0 || s.start+i >= s.stop {
 		panic("Index out of bounds")
 	}
 
 	return s.array.Set(s.start+i, item).Slice(s.start, s.stop)
 }
 
-func (s *ItemSlice) Append(items... Item) *ItemSlice {
+func (s *ItemSlice) Append(items ...Item) *ItemSlice {
 	newSlice := ItemSlice{array: s.array, start: s.start, stop: s.stop + len(items)}
 
 	// If this is a slice that has an upper bound that is lower than the backing
 	// array then set the values in the backing array to achieve some structural
 	// sharing.
 	itemPos := 0
-	for ; s.stop + itemPos < s.array.Len() && itemPos < len(items); itemPos++ {
-		newSlice.array = newSlice.array.Set(s.stop + itemPos, items[itemPos])
+	for ; s.stop+itemPos < s.array.Len() && itemPos < len(items); itemPos++ {
+		newSlice.array = newSlice.array.Set(s.stop+itemPos, items[itemPos])
 	}
 
 	// For the rest just append it to the underlying array
