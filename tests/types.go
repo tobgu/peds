@@ -5,9 +5,8 @@ package peds_testing
 // if defined in a files with a *_test.go name.
 type Foo uint
 type Bar float64
-//go:generate genny -in=../array.go -pkg=peds_testing -out=array_test_gen.go gen "Item=Foo,int"
-//go:generate genny -in=../map.go -pkg=peds_testing -out=map_test_gen.go gen "Key=Foo Value=Bar"
 
+//go:generate peds -vectors="FooVector<Foo>;IntVector<int>" -pkg=peds_testing -file=vector_test_gen.go
 
 //  go generate seems to require a function in the file that contains the generation expression...
 func f() {
