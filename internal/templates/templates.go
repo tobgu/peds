@@ -1,6 +1,56 @@
 package templates
 
 // NOTE: This file is auto generated, don't edit manually!
+const publicMapTemplate string = `
+////////////////////////
+/// Public functions ///
+////////////////////////
+
+type GenericMapType struct {
+	backingVector {{.MapBucketTypeName}}Vector
+	len           int
+}
+
+func (m *GenericMapType) Len() int {
+	return int(m.len)
+}
+
+func (m *GenericMapType) Load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeName}}, ok bool) {
+	var temp {{.MapValueTypeName}}
+	return temp, false
+}
+
+func (m *GenericMapType) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) *GenericMapType {
+	return &GenericMapType{}
+}
+
+func (m *GenericMapType) Delete(key {{.MapKeyTypeName}}) *GenericMapType {
+	return &GenericMapType{}
+}
+
+func (m *GenericMapType) Range(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {
+}
+
+// Check during generation that key is comparable, this can be done using reflection
+// Generate hashing code during generation based on key type (should be possible to get this info from AST or similar)
+
+// peds -maps "FooMap<int, string>;BarMap<int16, int32>"
+//      -sets "FooSet<mypackage.MyType>"
+//      -vectors "FooVec<io.Bar>"
+//      -imports "io;github.com/my/mypackage"
+//      -package mycontainers
+//      -file mycontainers_gen.go
+
+// Built in types can more or less be used as is, custom hash function needed depending on type. Third party types
+// or types in other packages need to be inspected to create v custom hash function for them (only public fields
+// will be accessible I guess). Types in the same package also need to be inspected. This is only true for keys.
+// Values can be whatever type.
+
+// As v first step only support built in types (and any redeclarations of them). Composite/custom types would
+// get their hash through:
+//   key := fmt.Sprintf("%#v", value)
+// Potentially printing v warning that this is supported but likely not very fast.
+`
 const VectorTemplate string = `
 //////////////
 /// Vector ///
@@ -20,51 +70,51 @@ func New{{.VectorTypeName}}(items ...{{.TypeName}}) *{{.VectorTypeName}} {
 	return empty{{.VectorTypeName}}.Append(items...)
 }
 
-func (a *{{.VectorTypeName}}) Get(i int) {{.TypeName}} {
-	if i < 0 || uint(i) >= a.len {
+func (v *{{.VectorTypeName}}) Get(i int) {{.TypeName}} {
+	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
 	}
 
-	return a.arrayFor(uint(i))[i&shiftBitMask]
+	return v.sliceFor(uint(i))[i&shiftBitMask]
 }
 
-func (a *{{.VectorTypeName}}) arrayFor(i uint) []{{.TypeName}} {
-	if i >= a.tailOffset() {
-		return a.tail
+func (v *{{.VectorTypeName}}) sliceFor(i uint) []{{.TypeName}} {
+	if i >= v.tailOffset() {
+		return v.tail
 	}
 
-	node := a.root
-	for level := a.shift; level > 0; level -= shiftSize {
+	node := v.root
+	for level := v.shift; level > 0; level -= shiftSize {
 		node = node.([]commonNode)[(i>>level)&shiftBitMask]
 	}
 
 	return node.([]{{.TypeName}})
 }
 
-func (a *{{.VectorTypeName}}) tailOffset() uint {
-	if a.len < nodeSize {
+func (v *{{.VectorTypeName}}) tailOffset() uint {
+	if v.len < nodeSize {
 		return 0
 	}
 
-	return ((a.len - 1) >> shiftSize) << shiftSize
+	return ((v.len - 1) >> shiftSize) << shiftSize
 }
 
-func (a *{{.VectorTypeName}}) Set(i int, item {{.TypeName}}) *{{.VectorTypeName}} {
-	if i < 0 || uint(i) >= a.len {
+func (v *{{.VectorTypeName}}) Set(i int, item {{.TypeName}}) *{{.VectorTypeName}} {
+	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
 	}
 
-	if uint(i) >= a.tailOffset() {
-		newTail := make([]{{.TypeName}}, len(a.tail))
-		copy(newTail, a.tail)
+	if uint(i) >= v.tailOffset() {
+		newTail := make([]{{.TypeName}}, len(v.tail))
+		copy(newTail, v.tail)
 		newTail[i&shiftBitMask] = item
-		return &{{.VectorTypeName}}{root: a.root, tail: newTail, len: a.len, shift: a.shift}
+		return &{{.VectorTypeName}}{root: v.root, tail: newTail, len: v.len, shift: v.shift}
 	}
 
-	return &{{.VectorTypeName}}{root: a.doAssoc(a.shift, a.root, uint(i), item), tail: a.tail, len: a.len, shift: a.shift}
+	return &{{.VectorTypeName}}{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
 }
 
-func (a *{{.VectorTypeName}}) doAssoc(level uint, node commonNode, i uint, item {{.TypeName}}) commonNode {
+func (v *{{.VectorTypeName}}) doAssoc(level uint, node commonNode, i uint, item {{.TypeName}}) commonNode {
 	if level == 0 {
 		ret := make([]{{.TypeName}}, nodeSize)
 		copy(ret, node.([]{{.TypeName}}))
@@ -75,12 +125,12 @@ func (a *{{.VectorTypeName}}) doAssoc(level uint, node commonNode, i uint, item 
 	ret := make([]commonNode, nodeSize)
 	copy(ret, node.([]commonNode))
 	subidx := (i >> level) & shiftBitMask
-	ret[subidx] = a.doAssoc(level-shiftSize, ret[subidx], i, item)
+	ret[subidx] = v.doAssoc(level-shiftSize, ret[subidx], i, item)
 	return ret
 }
 
-func (a *{{.VectorTypeName}}) pushTail(level uint, parent commonNode, tailNode []{{.TypeName}}) commonNode {
-	subIdx := ((a.len - 1) >> level) & shiftBitMask
+func (v *{{.VectorTypeName}}) pushTail(level uint, parent commonNode, tailNode []{{.TypeName}}) commonNode {
+	subIdx := ((v.len - 1) >> level) & shiftBitMask
 	parentNode := parent.([]commonNode)
 	ret := make([]commonNode, subIdx+1)
 	copy(ret, parentNode)
@@ -89,7 +139,7 @@ func (a *{{.VectorTypeName}}) pushTail(level uint, parent commonNode, tailNode [
 	if level == shiftSize {
 		nodeToInsert = tailNode
 	} else if subIdx < uint(len(parentNode)) {
-		nodeToInsert = a.pushTail(level-shiftSize, parentNode[subIdx], tailNode)
+		nodeToInsert = v.pushTail(level-shiftSize, parentNode[subIdx], tailNode)
 	} else {
 		nodeToInsert = newPath(level-shiftSize, tailNode)
 	}
@@ -98,8 +148,8 @@ func (a *{{.VectorTypeName}}) pushTail(level uint, parent commonNode, tailNode [
 	return ret
 }
 
-func (a *{{.VectorTypeName}}) Append(item ...{{.TypeName}}) *{{.VectorTypeName}} {
-	result := a
+func (v *{{.VectorTypeName}}) Append(item ...{{.TypeName}}) *{{.VectorTypeName}} {
+	result := v
 	itemLen := uint(len(item))
 	for insertOffset := uint(0); insertOffset < itemLen; {
 		tailLen := result.len - result.tailOffset()
@@ -122,33 +172,33 @@ func (a *{{.VectorTypeName}}) Append(item ...{{.TypeName}}) *{{.VectorTypeName}}
 	return result
 }
 
-func (a *{{.VectorTypeName}}) pushLeafNode(node []{{.TypeName}}) *{{.VectorTypeName}} {
+func (v *{{.VectorTypeName}}) pushLeafNode(node []{{.TypeName}}) *{{.VectorTypeName}} {
 	var newRoot commonNode
-	newShift := a.shift
+	newShift := v.shift
 
 	// Root overflow?
-	if (a.len >> shiftSize) > (1 << a.shift) {
-		newNode := newPath(a.shift, node)
-		newRoot = commonNode([]commonNode{a.root, newNode})
-		newShift = a.shift + shiftSize
+	if (v.len >> shiftSize) > (1 << v.shift) {
+		newNode := newPath(v.shift, node)
+		newRoot = commonNode([]commonNode{v.root, newNode})
+		newShift = v.shift + shiftSize
 	} else {
-		newRoot = a.pushTail(a.shift, a.root, node)
+		newRoot = v.pushTail(v.shift, v.root, node)
 	}
 
-	return &{{.VectorTypeName}}{root: newRoot, tail: a.tail, len: a.len, shift: newShift}
+	return &{{.VectorTypeName}}{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
 }
 
-func (a *{{.VectorTypeName}}) Slice(start, stop int) *{{.VectorTypeName}}Slice {
-	assertSliceOk(start, stop, a.Len())
-	return &{{.VectorTypeName}}Slice{array: a, start: start, stop: stop}
+func (v *{{.VectorTypeName}}) Slice(start, stop int) *{{.VectorTypeName}}Slice {
+	assertSliceOk(start, stop, v.Len())
+	return &{{.VectorTypeName}}Slice{vector: v, start: start, stop: stop}
 }
 
-func (a *{{.VectorTypeName}}) Len() int {
-	return int(a.len)
+func (v *{{.VectorTypeName}}) Len() int {
+	return int(v.len)
 }
 
-func (a *{{.VectorTypeName}}) Iter() *{{.VectorTypeName}}Iterator {
-	return new{{.VectorTypeName}}Iterator(a, 0, a.Len())
+func (v *{{.VectorTypeName}}) Iter() *{{.VectorTypeName}}Iterator {
+	return new{{.VectorTypeName}}Iterator(v, 0, v.Len())
 }
 
 //////////////////
@@ -156,14 +206,14 @@ func (a *{{.VectorTypeName}}) Iter() *{{.VectorTypeName}}Iterator {
 //////////////////
 
 type {{.VectorTypeName}}Iterator struct {
-	array       *{{.VectorTypeName}}
+	vector      *{{.VectorTypeName}}
 	currentNode []{{.TypeName}}
 	stop, pos   int
 }
 
-func new{{.VectorTypeName}}Iterator(array *{{.VectorTypeName}}, start, stop int) *{{.VectorTypeName}}Iterator {
-	it := {{.VectorTypeName}}Iterator{array: array, pos: start, stop: stop}
-	it.currentNode = array.arrayFor(uint(it.pos))
+func new{{.VectorTypeName}}Iterator(vector *{{.VectorTypeName}}, start, stop int) *{{.VectorTypeName}}Iterator {
+	it := {{.VectorTypeName}}Iterator{vector: vector, pos: start, stop: stop}
+	it.currentNode = vector.sliceFor(uint(it.pos))
 	return &it
 }
 
@@ -173,7 +223,7 @@ func (it *{{.VectorTypeName}}Iterator) Next() (value {{.TypeName}}, ok bool) {
 	}
 
 	if it.pos&shiftBitMask == 0 {
-		it.currentNode = it.array.arrayFor(uint(it.pos))
+		it.currentNode = it.vector.sliceFor(uint(it.pos))
 	}
 
 	value = it.currentNode[it.pos&shiftBitMask]
@@ -226,59 +276,188 @@ func assertSliceOk(start, stop, len int) {
 }
 
 `
-const MapTemplate string = `
+const privateMapTemplate string = `
 ///////////
 /// Map ///
 ///////////
 
-////////////////////////
-/// Public functions ///
-////////////////////////
+/////////////////////
+/// Backing vector ///
+/////////////////////
 
-type GenericMapType struct {
-	backingVector {{.VectorTypeName}}
-	len           int
+type {{.MapBucketTypeName}}Vector struct {
+	tail  []{{.MapBucketTypeName}}
+	root  commonNode
+	len   uint
+	shift uint
 }
 
-func (m *GenericMapType) Len() int {
-	return int(m.len)
+type {{.MapItemTypeName}} struct {
+	Key   {{.MapKeyTypeName}}
+	Value {{.MapValueTypeName}}
 }
 
-func (m *GenericMapType) Load(key GenericMapKeyType) (value GenericMapValueType, ok bool) {
-	var temp GenericMapValueType
-	return temp, false
+type {{.MapBucketTypeName}} []{{.MapItemTypeName}}
+
+var empty{{.MapBucketTypeName}}Tail = make([]{{.MapBucketTypeName}}, 0)
+var empty{{.MapBucketTypeName}}Vector *{{.MapBucketTypeName}}Vector = &{{.MapBucketTypeName}}Vector{root: emptyCommonNode, shift: shiftSize, tail: empty{{.MapBucketTypeName}}Tail}
+
+func (v *{{.MapBucketTypeName}}Vector) Get(i int) {{.MapBucketTypeName}} {
+	if i < 0 || uint(i) >= v.len {
+		panic("Index out of bounds")
+	}
+
+	return v.sliceFor(uint(i))[i&shiftBitMask]
 }
 
-func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType) *GenericMapType {
-	return &GenericMapType{}
+func (v *{{.MapBucketTypeName}}Vector) sliceFor(i uint) []{{.MapBucketTypeName}} {
+	if i >= v.tailOffset() {
+		return v.tail
+	}
+
+	node := v.root
+	for level := v.shift; level > 0; level -= shiftSize {
+		node = node.([]commonNode)[(i>>level)&shiftBitMask]
+	}
+
+	return node.([]{{.MapBucketTypeName}})
 }
 
-func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
-	return &GenericMapType{}
+func (v *{{.MapBucketTypeName}}Vector) tailOffset() uint {
+	if v.len < nodeSize {
+		return 0
+	}
+
+	return ((v.len - 1) >> shiftSize) << shiftSize
 }
 
-func (m *GenericMapType) Range(f func(key GenericMapKeyType, value GenericMapValueType) bool) {
+func (v *{{.MapBucketTypeName}}Vector) Set(i int, item {{.MapBucketTypeName}}) *{{.MapBucketTypeName}}Vector {
+	if i < 0 || uint(i) >= v.len {
+		panic("Index out of bounds")
+	}
+
+	if uint(i) >= v.tailOffset() {
+		newTail := make([]{{.MapBucketTypeName}}, len(v.tail))
+		copy(newTail, v.tail)
+		newTail[i&shiftBitMask] = item
+		return &{{.MapBucketTypeName}}Vector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
+	}
+
+	return &{{.MapBucketTypeName}}Vector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
 }
 
-// Check during generation that key is comparable, this can be done using reflection
-// Generate hashing code during generation based on key type (should be possible to get this info from AST or similar)
+func (v *{{.MapBucketTypeName}}Vector) doAssoc(level uint, node commonNode, i uint, item {{.MapBucketTypeName}}) commonNode {
+	if level == 0 {
+		ret := make([]{{.MapBucketTypeName}}, nodeSize)
+		copy(ret, node.([]{{.MapBucketTypeName}}))
+		ret[i&shiftBitMask] = item
+		return ret
+	}
 
-// peds -maps "FooMap<int, string>;BarMap<int16, int32>"
-//      -sets "FooSet<mypackage.MyType>"
-//      -vectors "FooVec<io.Bar>"
-//      -imports "io;github.com/my/mypackage"
-//      -package mycontainers
-//      -file mycontainers_gen.go
+	ret := make([]commonNode, nodeSize)
+	copy(ret, node.([]commonNode))
+	subidx := (i >> level) & shiftBitMask
+	ret[subidx] = v.doAssoc(level-shiftSize, ret[subidx], i, item)
+	return ret
+}
 
-// Built in types can more or less be used as is, custom hash function needed depending on type. Third party types
-// or types in other packages need to be inspected to create a custom hash function for them (only public fields
-// will be accessible I guess). Types in the same package also need to be inspected. This is only true for keys.
-// Values can be whatever type.
+func (v *{{.MapBucketTypeName}}Vector) pushTail(level uint, parent commonNode, tailNode []{{.MapBucketTypeName}}) commonNode {
+	subIdx := ((v.len - 1) >> level) & shiftBitMask
+	parentNode := parent.([]commonNode)
+	ret := make([]commonNode, subIdx+1)
+	copy(ret, parentNode)
+	var nodeToInsert commonNode
 
-// As a first step only support built in types (and any redeclarations of them). Composite/custom types would
-// get their hash through:
-//   key := fmt.Sprintf("%#v", value)
-// Potentially printing a warning that this is supported but likely not very fast.
+	if level == shiftSize {
+		nodeToInsert = tailNode
+	} else if subIdx < uint(len(parentNode)) {
+		nodeToInsert = v.pushTail(level-shiftSize, parentNode[subIdx], tailNode)
+	} else {
+		nodeToInsert = newPath(level-shiftSize, tailNode)
+	}
+
+	ret[subIdx] = nodeToInsert
+	return ret
+}
+
+func (v *{{.MapBucketTypeName}}Vector) Append(item ...{{.MapBucketTypeName}}) *{{.MapBucketTypeName}}Vector {
+	result := v
+	itemLen := uint(len(item))
+	for insertOffset := uint(0); insertOffset < itemLen; {
+		tailLen := result.len - result.tailOffset()
+		tailFree := nodeSize - tailLen
+		if tailFree == 0 {
+			result = result.pushLeafNode(result.tail)
+			result.tail = empty{{.MapBucketTypeName}}Vector.tail
+			tailFree = nodeSize
+			tailLen = 0
+		}
+
+		batchLen := uintMin(itemLen-insertOffset, tailFree)
+		newTail := make([]{{.MapBucketTypeName}}, 0, tailLen+batchLen)
+		newTail = append(newTail, result.tail...)
+		newTail = append(newTail, item[insertOffset:insertOffset+batchLen]...)
+		result = &{{.MapBucketTypeName}}Vector{root: result.root, tail: newTail, len: result.len + batchLen, shift: result.shift}
+		insertOffset += batchLen
+	}
+
+	return result
+}
+
+func (v *{{.MapBucketTypeName}}Vector) pushLeafNode(node []{{.MapBucketTypeName}}) *{{.MapBucketTypeName}}Vector {
+	var newRoot commonNode
+	newShift := v.shift
+
+	// Root overflow?
+	if (v.len >> shiftSize) > (1 << v.shift) {
+		newNode := newPath(v.shift, node)
+		newRoot = commonNode([]commonNode{v.root, newNode})
+		newShift = v.shift + shiftSize
+	} else {
+		newRoot = v.pushTail(v.shift, v.root, node)
+	}
+
+	return &{{.MapBucketTypeName}}Vector{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
+}
+
+func (v *{{.MapBucketTypeName}}Vector) Len() int {
+	return int(v.len)
+}
+
+func (v *{{.MapBucketTypeName}}Vector) Iter() *{{.MapBucketTypeName}}VectorIterator {
+	return new{{.MapBucketTypeName}}VectorIterator(v, 0, v.Len())
+}
+
+//////////////////
+//// Iterator ////
+//////////////////
+
+type {{.MapBucketTypeName}}VectorIterator struct {
+	vector      *{{.MapBucketTypeName}}Vector
+	currentNode []{{.MapBucketTypeName}}
+	stop, pos   int
+}
+
+func new{{.MapBucketTypeName}}VectorIterator(vector *{{.MapBucketTypeName}}Vector, start, stop int) *{{.MapBucketTypeName}}VectorIterator {
+	it := {{.MapBucketTypeName}}VectorIterator{vector: vector, pos: start, stop: stop}
+	it.currentNode = vector.sliceFor(uint(it.pos))
+	return &it
+}
+
+func (it *{{.MapBucketTypeName}}VectorIterator) Next() (value {{.MapBucketTypeName}}, ok bool) {
+	if it.pos >= it.stop {
+		return value, false
+	}
+
+	if it.pos&shiftBitMask == 0 {
+		it.currentNode = it.vector.sliceFor(uint(it.pos))
+	}
+
+	value = it.currentNode[it.pos&shiftBitMask]
+	it.pos++
+	return value, true
+}
+
 `
 const SliceTemplate string = `
 ////////////////
@@ -286,12 +465,12 @@ const SliceTemplate string = `
 ////////////////
 
 type {{.VectorTypeName}}Slice struct {
-	array       *{{.VectorTypeName}}
+	vector      *{{.VectorTypeName}}
 	start, stop int
 }
 
 func New{{.VectorTypeName}}Slice(items ...{{.TypeName}}) *{{.VectorTypeName}}Slice {
-	return &{{.VectorTypeName}}Slice{array: empty{{.VectorTypeName}}.Append(items...), start: 0, stop: len(items)}
+	return &{{.VectorTypeName}}Slice{vector: empty{{.VectorTypeName}}.Append(items...), start: 0, stop: len(items)}
 }
 
 func (s *{{.VectorTypeName}}Slice) Len() int {
@@ -303,7 +482,7 @@ func (s *{{.VectorTypeName}}Slice) Get(i int) {{.TypeName}} {
 		panic("Index out of bounds")
 	}
 
-	return s.array.Get(s.start + i)
+	return s.vector.Get(s.start + i)
 }
 
 func (s *{{.VectorTypeName}}Slice) Set(i int, item {{.TypeName}}) *{{.VectorTypeName}}Slice {
@@ -311,32 +490,32 @@ func (s *{{.VectorTypeName}}Slice) Set(i int, item {{.TypeName}}) *{{.VectorType
 		panic("Index out of bounds")
 	}
 
-	return s.array.Set(s.start+i, item).Slice(s.start, s.stop)
+	return s.vector.Set(s.start+i, item).Slice(s.start, s.stop)
 }
 
 func (s *{{.VectorTypeName}}Slice) Append(items ...{{.TypeName}}) *{{.VectorTypeName}}Slice {
-	newSlice := {{.VectorTypeName}}Slice{array: s.array, start: s.start, stop: s.stop + len(items)}
+	newSlice := {{.VectorTypeName}}Slice{vector: s.vector, start: s.start, stop: s.stop + len(items)}
 
-	// If this is a slice that has an upper bound that is lower than the backing
-	// array then set the values in the backing array to achieve some structural
+	// If this is v slice that has an upper bound that is lower than the backing
+	// vector then set the values in the backing vector to achieve some structural
 	// sharing.
 	itemPos := 0
-	for ; s.stop+itemPos < s.array.Len() && itemPos < len(items); itemPos++ {
-		newSlice.array = newSlice.array.Set(s.stop+itemPos, items[itemPos])
+	for ; s.stop+itemPos < s.vector.Len() && itemPos < len(items); itemPos++ {
+		newSlice.vector = newSlice.vector.Set(s.stop+itemPos, items[itemPos])
 	}
 
-	// For the rest just append it to the underlying array
-	newSlice.array = newSlice.array.Append(items[itemPos:]...)
+	// For the rest just append it to the underlying vector
+	newSlice.vector = newSlice.vector.Append(items[itemPos:]...)
 	return &newSlice
 }
 
 func (s *{{.VectorTypeName}}Slice) Slice(start, stop int) *{{.VectorTypeName}}Slice {
 	assertSliceOk(start, stop, s.stop-s.start)
-	return &{{.VectorTypeName}}Slice{array: s.array, start: s.start + start, stop: s.start + stop}
+	return &{{.VectorTypeName}}Slice{vector: s.vector, start: s.start + start, stop: s.start + stop}
 }
 
 func (s *{{.VectorTypeName}}Slice) Iter() *{{.VectorTypeName}}Iterator {
-	return new{{.VectorTypeName}}Iterator(s.array, s.start, s.stop)
+	return new{{.VectorTypeName}}Iterator(s.vector, s.start, s.stop)
 }
 
 `

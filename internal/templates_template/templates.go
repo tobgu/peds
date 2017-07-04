@@ -64,51 +64,51 @@ func NewGenericVectorType(items ...GenericType) *GenericVectorType {
 	return emptyGenericVectorType.Append(items...)
 }
 
-func (a *GenericVectorType) Get(i int) GenericType {
-	if i < 0 || uint(i) >= a.len {
+func (v *GenericVectorType) Get(i int) GenericType {
+	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
 	}
 
-	return a.arrayFor(uint(i))[i&shiftBitMask]
+	return v.sliceFor(uint(i))[i&shiftBitMask]
 }
 
-func (a *GenericVectorType) arrayFor(i uint) []GenericType {
-	if i >= a.tailOffset() {
-		return a.tail
+func (v *GenericVectorType) sliceFor(i uint) []GenericType {
+	if i >= v.tailOffset() {
+		return v.tail
 	}
 
-	node := a.root
-	for level := a.shift; level > 0; level -= shiftSize {
+	node := v.root
+	for level := v.shift; level > 0; level -= shiftSize {
 		node = node.([]commonNode)[(i>>level)&shiftBitMask]
 	}
 
 	return node.([]GenericType)
 }
 
-func (a *GenericVectorType) tailOffset() uint {
-	if a.len < nodeSize {
+func (v *GenericVectorType) tailOffset() uint {
+	if v.len < nodeSize {
 		return 0
 	}
 
-	return ((a.len - 1) >> shiftSize) << shiftSize
+	return ((v.len - 1) >> shiftSize) << shiftSize
 }
 
-func (a *GenericVectorType) Set(i int, item GenericType) *GenericVectorType {
-	if i < 0 || uint(i) >= a.len {
+func (v *GenericVectorType) Set(i int, item GenericType) *GenericVectorType {
+	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
 	}
 
-	if uint(i) >= a.tailOffset() {
-		newTail := make([]GenericType, len(a.tail))
-		copy(newTail, a.tail)
+	if uint(i) >= v.tailOffset() {
+		newTail := make([]GenericType, len(v.tail))
+		copy(newTail, v.tail)
 		newTail[i&shiftBitMask] = item
-		return &GenericVectorType{root: a.root, tail: newTail, len: a.len, shift: a.shift}
+		return &GenericVectorType{root: v.root, tail: newTail, len: v.len, shift: v.shift}
 	}
 
-	return &GenericVectorType{root: a.doAssoc(a.shift, a.root, uint(i), item), tail: a.tail, len: a.len, shift: a.shift}
+	return &GenericVectorType{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
 }
 
-func (a *GenericVectorType) doAssoc(level uint, node commonNode, i uint, item GenericType) commonNode {
+func (v *GenericVectorType) doAssoc(level uint, node commonNode, i uint, item GenericType) commonNode {
 	if level == 0 {
 		ret := make([]GenericType, nodeSize)
 		copy(ret, node.([]GenericType))
@@ -119,12 +119,12 @@ func (a *GenericVectorType) doAssoc(level uint, node commonNode, i uint, item Ge
 	ret := make([]commonNode, nodeSize)
 	copy(ret, node.([]commonNode))
 	subidx := (i >> level) & shiftBitMask
-	ret[subidx] = a.doAssoc(level-shiftSize, ret[subidx], i, item)
+	ret[subidx] = v.doAssoc(level-shiftSize, ret[subidx], i, item)
 	return ret
 }
 
-func (a *GenericVectorType) pushTail(level uint, parent commonNode, tailNode []GenericType) commonNode {
-	subIdx := ((a.len - 1) >> level) & shiftBitMask
+func (v *GenericVectorType) pushTail(level uint, parent commonNode, tailNode []GenericType) commonNode {
+	subIdx := ((v.len - 1) >> level) & shiftBitMask
 	parentNode := parent.([]commonNode)
 	ret := make([]commonNode, subIdx+1)
 	copy(ret, parentNode)
@@ -133,7 +133,7 @@ func (a *GenericVectorType) pushTail(level uint, parent commonNode, tailNode []G
 	if level == shiftSize {
 		nodeToInsert = tailNode
 	} else if subIdx < uint(len(parentNode)) {
-		nodeToInsert = a.pushTail(level-shiftSize, parentNode[subIdx], tailNode)
+		nodeToInsert = v.pushTail(level-shiftSize, parentNode[subIdx], tailNode)
 	} else {
 		nodeToInsert = newPath(level-shiftSize, tailNode)
 	}
@@ -142,8 +142,8 @@ func (a *GenericVectorType) pushTail(level uint, parent commonNode, tailNode []G
 	return ret
 }
 
-func (a *GenericVectorType) Append(item ...GenericType) *GenericVectorType {
-	result := a
+func (v *GenericVectorType) Append(item ...GenericType) *GenericVectorType {
+	result := v
 	itemLen := uint(len(item))
 	for insertOffset := uint(0); insertOffset < itemLen; {
 		tailLen := result.len - result.tailOffset()
@@ -166,33 +166,33 @@ func (a *GenericVectorType) Append(item ...GenericType) *GenericVectorType {
 	return result
 }
 
-func (a *GenericVectorType) pushLeafNode(node []GenericType) *GenericVectorType {
+func (v *GenericVectorType) pushLeafNode(node []GenericType) *GenericVectorType {
 	var newRoot commonNode
-	newShift := a.shift
+	newShift := v.shift
 
 	// Root overflow?
-	if (a.len >> shiftSize) > (1 << a.shift) {
-		newNode := newPath(a.shift, node)
-		newRoot = commonNode([]commonNode{a.root, newNode})
-		newShift = a.shift + shiftSize
+	if (v.len >> shiftSize) > (1 << v.shift) {
+		newNode := newPath(v.shift, node)
+		newRoot = commonNode([]commonNode{v.root, newNode})
+		newShift = v.shift + shiftSize
 	} else {
-		newRoot = a.pushTail(a.shift, a.root, node)
+		newRoot = v.pushTail(v.shift, v.root, node)
 	}
 
-	return &GenericVectorType{root: newRoot, tail: a.tail, len: a.len, shift: newShift}
+	return &GenericVectorType{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
 }
 
-func (a *GenericVectorType) Slice(start, stop int) *GenericVectorTypeSlice {
-	assertSliceOk(start, stop, a.Len())
-	return &GenericVectorTypeSlice{array: a, start: start, stop: stop}
+func (v *GenericVectorType) Slice(start, stop int) *GenericVectorTypeSlice {
+	assertSliceOk(start, stop, v.Len())
+	return &GenericVectorTypeSlice{vector: v, start: start, stop: stop}
 }
 
-func (a *GenericVectorType) Len() int {
-	return int(a.len)
+func (v *GenericVectorType) Len() int {
+	return int(v.len)
 }
 
-func (a *GenericVectorType) Iter() *GenericVectorTypeIterator {
-	return newGenericVectorTypeIterator(a, 0, a.Len())
+func (v *GenericVectorType) Iter() *GenericVectorTypeIterator {
+	return newGenericVectorTypeIterator(v, 0, v.Len())
 }
 
 //////////////////
@@ -200,14 +200,14 @@ func (a *GenericVectorType) Iter() *GenericVectorTypeIterator {
 //////////////////
 
 type GenericVectorTypeIterator struct {
-	array       *GenericVectorType
+	vector      *GenericVectorType
 	currentNode []GenericType
 	stop, pos   int
 }
 
-func newGenericVectorTypeIterator(array *GenericVectorType, start, stop int) *GenericVectorTypeIterator {
-	it := GenericVectorTypeIterator{array: array, pos: start, stop: stop}
-	it.currentNode = array.arrayFor(uint(it.pos))
+func newGenericVectorTypeIterator(vector *GenericVectorType, start, stop int) *GenericVectorTypeIterator {
+	it := GenericVectorTypeIterator{vector: vector, pos: start, stop: stop}
+	it.currentNode = vector.sliceFor(uint(it.pos))
 	return &it
 }
 
@@ -217,7 +217,7 @@ func (it *GenericVectorTypeIterator) Next() (value GenericType, ok bool) {
 	}
 
 	if it.pos&shiftBitMask == 0 {
-		it.currentNode = it.array.arrayFor(uint(it.pos))
+		it.currentNode = it.vector.sliceFor(uint(it.pos))
 	}
 
 	value = it.currentNode[it.pos&shiftBitMask]
@@ -232,12 +232,12 @@ func (it *GenericVectorTypeIterator) Next() (value GenericType, ok bool) {
 ////////////////
 
 type GenericVectorTypeSlice struct {
-	array       *GenericVectorType
+	vector      *GenericVectorType
 	start, stop int
 }
 
 func NewGenericVectorTypeSlice(items ...GenericType) *GenericVectorTypeSlice {
-	return &GenericVectorTypeSlice{array: emptyGenericVectorType.Append(items...), start: 0, stop: len(items)}
+	return &GenericVectorTypeSlice{vector: emptyGenericVectorType.Append(items...), start: 0, stop: len(items)}
 }
 
 func (s *GenericVectorTypeSlice) Len() int {
@@ -249,7 +249,7 @@ func (s *GenericVectorTypeSlice) Get(i int) GenericType {
 		panic("Index out of bounds")
 	}
 
-	return s.array.Get(s.start + i)
+	return s.vector.Get(s.start + i)
 }
 
 func (s *GenericVectorTypeSlice) Set(i int, item GenericType) *GenericVectorTypeSlice {
@@ -257,46 +257,225 @@ func (s *GenericVectorTypeSlice) Set(i int, item GenericType) *GenericVectorType
 		panic("Index out of bounds")
 	}
 
-	return s.array.Set(s.start+i, item).Slice(s.start, s.stop)
+	return s.vector.Set(s.start+i, item).Slice(s.start, s.stop)
 }
 
 func (s *GenericVectorTypeSlice) Append(items ...GenericType) *GenericVectorTypeSlice {
-	newSlice := GenericVectorTypeSlice{array: s.array, start: s.start, stop: s.stop + len(items)}
+	newSlice := GenericVectorTypeSlice{vector: s.vector, start: s.start, stop: s.stop + len(items)}
 
-	// If this is a slice that has an upper bound that is lower than the backing
-	// array then set the values in the backing array to achieve some structural
+	// If this is v slice that has an upper bound that is lower than the backing
+	// vector then set the values in the backing vector to achieve some structural
 	// sharing.
 	itemPos := 0
-	for ; s.stop+itemPos < s.array.Len() && itemPos < len(items); itemPos++ {
-		newSlice.array = newSlice.array.Set(s.stop+itemPos, items[itemPos])
+	for ; s.stop+itemPos < s.vector.Len() && itemPos < len(items); itemPos++ {
+		newSlice.vector = newSlice.vector.Set(s.stop+itemPos, items[itemPos])
 	}
 
-	// For the rest just append it to the underlying array
-	newSlice.array = newSlice.array.Append(items[itemPos:]...)
+	// For the rest just append it to the underlying vector
+	newSlice.vector = newSlice.vector.Append(items[itemPos:]...)
 	return &newSlice
 }
 
 func (s *GenericVectorTypeSlice) Slice(start, stop int) *GenericVectorTypeSlice {
 	assertSliceOk(start, stop, s.stop-s.start)
-	return &GenericVectorTypeSlice{array: s.array, start: s.start + start, stop: s.start + stop}
+	return &GenericVectorTypeSlice{vector: s.vector, start: s.start + start, stop: s.start + stop}
 }
 
 func (s *GenericVectorTypeSlice) Iter() *GenericVectorTypeIterator {
-	return newGenericVectorTypeIterator(s.array, s.start, s.stop)
+	return newGenericVectorTypeIterator(s.vector, s.start, s.stop)
 }
 
-//template:MapTemplate
+//template:privateMapTemplate
 
 ///////////
 /// Map ///
 ///////////
+
+/////////////////////
+/// Backing vector ///
+/////////////////////
+
+type GenericBucketVector struct {
+	tail  []GenericBucket
+	root  commonNode
+	len   uint
+	shift uint
+}
+
+type GenericMapItem struct {
+	Key   GenericMapKeyType
+	Value GenericMapValueType
+}
+
+type GenericBucket []GenericMapItem
+
+var emptyGenericBucketTail = make([]GenericBucket, 0)
+var emptyGenericBucketVector *GenericBucketVector = &GenericBucketVector{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericBucketTail}
+
+func (v *GenericBucketVector) Get(i int) GenericBucket {
+	if i < 0 || uint(i) >= v.len {
+		panic("Index out of bounds")
+	}
+
+	return v.sliceFor(uint(i))[i&shiftBitMask]
+}
+
+func (v *GenericBucketVector) sliceFor(i uint) []GenericBucket {
+	if i >= v.tailOffset() {
+		return v.tail
+	}
+
+	node := v.root
+	for level := v.shift; level > 0; level -= shiftSize {
+		node = node.([]commonNode)[(i>>level)&shiftBitMask]
+	}
+
+	return node.([]GenericBucket)
+}
+
+func (v *GenericBucketVector) tailOffset() uint {
+	if v.len < nodeSize {
+		return 0
+	}
+
+	return ((v.len - 1) >> shiftSize) << shiftSize
+}
+
+func (v *GenericBucketVector) Set(i int, item GenericBucket) *GenericBucketVector {
+	if i < 0 || uint(i) >= v.len {
+		panic("Index out of bounds")
+	}
+
+	if uint(i) >= v.tailOffset() {
+		newTail := make([]GenericBucket, len(v.tail))
+		copy(newTail, v.tail)
+		newTail[i&shiftBitMask] = item
+		return &GenericBucketVector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
+	}
+
+	return &GenericBucketVector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
+}
+
+func (v *GenericBucketVector) doAssoc(level uint, node commonNode, i uint, item GenericBucket) commonNode {
+	if level == 0 {
+		ret := make([]GenericBucket, nodeSize)
+		copy(ret, node.([]GenericBucket))
+		ret[i&shiftBitMask] = item
+		return ret
+	}
+
+	ret := make([]commonNode, nodeSize)
+	copy(ret, node.([]commonNode))
+	subidx := (i >> level) & shiftBitMask
+	ret[subidx] = v.doAssoc(level-shiftSize, ret[subidx], i, item)
+	return ret
+}
+
+func (v *GenericBucketVector) pushTail(level uint, parent commonNode, tailNode []GenericBucket) commonNode {
+	subIdx := ((v.len - 1) >> level) & shiftBitMask
+	parentNode := parent.([]commonNode)
+	ret := make([]commonNode, subIdx+1)
+	copy(ret, parentNode)
+	var nodeToInsert commonNode
+
+	if level == shiftSize {
+		nodeToInsert = tailNode
+	} else if subIdx < uint(len(parentNode)) {
+		nodeToInsert = v.pushTail(level-shiftSize, parentNode[subIdx], tailNode)
+	} else {
+		nodeToInsert = newPath(level-shiftSize, tailNode)
+	}
+
+	ret[subIdx] = nodeToInsert
+	return ret
+}
+
+func (v *GenericBucketVector) Append(item ...GenericBucket) *GenericBucketVector {
+	result := v
+	itemLen := uint(len(item))
+	for insertOffset := uint(0); insertOffset < itemLen; {
+		tailLen := result.len - result.tailOffset()
+		tailFree := nodeSize - tailLen
+		if tailFree == 0 {
+			result = result.pushLeafNode(result.tail)
+			result.tail = emptyGenericBucketVector.tail
+			tailFree = nodeSize
+			tailLen = 0
+		}
+
+		batchLen := uintMin(itemLen-insertOffset, tailFree)
+		newTail := make([]GenericBucket, 0, tailLen+batchLen)
+		newTail = append(newTail, result.tail...)
+		newTail = append(newTail, item[insertOffset:insertOffset+batchLen]...)
+		result = &GenericBucketVector{root: result.root, tail: newTail, len: result.len + batchLen, shift: result.shift}
+		insertOffset += batchLen
+	}
+
+	return result
+}
+
+func (v *GenericBucketVector) pushLeafNode(node []GenericBucket) *GenericBucketVector {
+	var newRoot commonNode
+	newShift := v.shift
+
+	// Root overflow?
+	if (v.len >> shiftSize) > (1 << v.shift) {
+		newNode := newPath(v.shift, node)
+		newRoot = commonNode([]commonNode{v.root, newNode})
+		newShift = v.shift + shiftSize
+	} else {
+		newRoot = v.pushTail(v.shift, v.root, node)
+	}
+
+	return &GenericBucketVector{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
+}
+
+func (v *GenericBucketVector) Len() int {
+	return int(v.len)
+}
+
+func (v *GenericBucketVector) Iter() *GenericBucketVectorIterator {
+	return newGenericBucketVectorIterator(v, 0, v.Len())
+}
+
+//////////////////
+//// Iterator ////
+//////////////////
+
+type GenericBucketVectorIterator struct {
+	vector      *GenericBucketVector
+	currentNode []GenericBucket
+	stop, pos   int
+}
+
+func newGenericBucketVectorIterator(vector *GenericBucketVector, start, stop int) *GenericBucketVectorIterator {
+	it := GenericBucketVectorIterator{vector: vector, pos: start, stop: stop}
+	it.currentNode = vector.sliceFor(uint(it.pos))
+	return &it
+}
+
+func (it *GenericBucketVectorIterator) Next() (value GenericBucket, ok bool) {
+	if it.pos >= it.stop {
+		return value, false
+	}
+
+	if it.pos&shiftBitMask == 0 {
+		it.currentNode = it.vector.sliceFor(uint(it.pos))
+	}
+
+	value = it.currentNode[it.pos&shiftBitMask]
+	it.pos++
+	return value, true
+}
+
+//template:publicMapTemplate
 
 ////////////////////////
 /// Public functions ///
 ////////////////////////
 
 type GenericMapType struct {
-	backingVector GenericVectorType
+	backingVector GenericBucketVector
 	len           int
 }
 
@@ -331,11 +510,11 @@ func (m *GenericMapType) Range(f func(key GenericMapKeyType, value GenericMapVal
 //      -file mycontainers_gen.go
 
 // Built in types can more or less be used as is, custom hash function needed depending on type. Third party types
-// or types in other packages need to be inspected to create a custom hash function for them (only public fields
+// or types in other packages need to be inspected to create v custom hash function for them (only public fields
 // will be accessible I guess). Types in the same package also need to be inspected. This is only true for keys.
 // Values can be whatever type.
 
-// As a first step only support built in types (and any redeclarations of them). Composite/custom types would
+// As v first step only support built in types (and any redeclarations of them). Composite/custom types would
 // get their hash through:
 //   key := fmt.Sprintf("%#v", value)
-// Potentially printing a warning that this is supported but likely not very fast.
+// Potentially printing v warning that this is supported but likely not very fast.

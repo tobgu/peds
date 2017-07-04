@@ -5,7 +5,11 @@ if __name__ == "__main__":
     output_file_name = 'internal/templates/templates.go'
     template_package_name = 'templates'
     generic_types = {'GenericVectorType': 'VectorTypeName',
-                     'GenericType': 'TypeName'}
+                     'GenericType': 'TypeName',
+                     'GenericBucket': 'MapBucketTypeName',
+                     'GenericMapItem': 'MapItemTypeName',
+                     'GenericMapKeyType': 'MapKeyTypeName',
+                     'GenericMapValueType': 'MapValueTypeName'}
 
     state = 'searching'
     template_name = ''
