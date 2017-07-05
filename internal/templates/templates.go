@@ -1,34 +1,34 @@
 package templates
 
 // NOTE: This file is auto generated, don't edit manually!
-const publicMapTemplate string = `
+const PublicMapTemplate string = `
 ////////////////////////
 /// Public functions ///
 ////////////////////////
 
-type GenericMapType struct {
-	backingVector {{.MapBucketTypeName}}Vector
+type {{.MapTypeName}} struct {
+	backingVector {{.MapItemTypeName}}BucketVector
 	len           int
 }
 
-func (m *GenericMapType) Len() int {
+func (m *{{.MapTypeName}}) Len() int {
 	return int(m.len)
 }
 
-func (m *GenericMapType) Load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeName}}, ok bool) {
+func (m *{{.MapTypeName}}) Load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeName}}, ok bool) {
 	var temp {{.MapValueTypeName}}
 	return temp, false
 }
 
-func (m *GenericMapType) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) *GenericMapType {
-	return &GenericMapType{}
+func (m *{{.MapTypeName}}) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) *{{.MapTypeName}} {
+	return &{{.MapTypeName}}{}
 }
 
-func (m *GenericMapType) Delete(key {{.MapKeyTypeName}}) *GenericMapType {
-	return &GenericMapType{}
+func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
+	return &{{.MapTypeName}}{}
 }
 
-func (m *GenericMapType) Range(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {
+func (m *{{.MapTypeName}}) Range(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {
 }
 
 // Check during generation that key is comparable, this can be done using reflection
@@ -276,7 +276,7 @@ func assertSliceOk(start, stop, len int) {
 }
 
 `
-const privateMapTemplate string = `
+const PrivateMapTemplate string = `
 ///////////
 /// Map ///
 ///////////
@@ -285,8 +285,8 @@ const privateMapTemplate string = `
 /// Backing vector ///
 /////////////////////
 
-type {{.MapBucketTypeName}}Vector struct {
-	tail  []{{.MapBucketTypeName}}
+type {{.MapItemTypeName}}BucketVector struct {
+	tail  []{{.MapItemTypeName}}Bucket
 	root  commonNode
 	len   uint
 	shift uint
@@ -297,12 +297,12 @@ type {{.MapItemTypeName}} struct {
 	Value {{.MapValueTypeName}}
 }
 
-type {{.MapBucketTypeName}} []{{.MapItemTypeName}}
+type {{.MapItemTypeName}}Bucket []{{.MapItemTypeName}}
 
-var empty{{.MapBucketTypeName}}Tail = make([]{{.MapBucketTypeName}}, 0)
-var empty{{.MapBucketTypeName}}Vector *{{.MapBucketTypeName}}Vector = &{{.MapBucketTypeName}}Vector{root: emptyCommonNode, shift: shiftSize, tail: empty{{.MapBucketTypeName}}Tail}
+var emptyGenericBucketTail = make([]{{.MapItemTypeName}}Bucket, 0)
+var emptyGenericBucketVector *{{.MapItemTypeName}}BucketVector = &{{.MapItemTypeName}}BucketVector{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericBucketTail}
 
-func (v *{{.MapBucketTypeName}}Vector) Get(i int) {{.MapBucketTypeName}} {
+func (v *{{.MapItemTypeName}}BucketVector) Get(i int) {{.MapItemTypeName}}Bucket {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
 	}
@@ -310,7 +310,7 @@ func (v *{{.MapBucketTypeName}}Vector) Get(i int) {{.MapBucketTypeName}} {
 	return v.sliceFor(uint(i))[i&shiftBitMask]
 }
 
-func (v *{{.MapBucketTypeName}}Vector) sliceFor(i uint) []{{.MapBucketTypeName}} {
+func (v *{{.MapItemTypeName}}BucketVector) sliceFor(i uint) []{{.MapItemTypeName}}Bucket {
 	if i >= v.tailOffset() {
 		return v.tail
 	}
@@ -320,10 +320,10 @@ func (v *{{.MapBucketTypeName}}Vector) sliceFor(i uint) []{{.MapBucketTypeName}}
 		node = node.([]commonNode)[(i>>level)&shiftBitMask]
 	}
 
-	return node.([]{{.MapBucketTypeName}})
+	return node.([]{{.MapItemTypeName}}Bucket)
 }
 
-func (v *{{.MapBucketTypeName}}Vector) tailOffset() uint {
+func (v *{{.MapItemTypeName}}BucketVector) tailOffset() uint {
 	if v.len < nodeSize {
 		return 0
 	}
@@ -331,25 +331,25 @@ func (v *{{.MapBucketTypeName}}Vector) tailOffset() uint {
 	return ((v.len - 1) >> shiftSize) << shiftSize
 }
 
-func (v *{{.MapBucketTypeName}}Vector) Set(i int, item {{.MapBucketTypeName}}) *{{.MapBucketTypeName}}Vector {
+func (v *{{.MapItemTypeName}}BucketVector) Set(i int, item {{.MapItemTypeName}}Bucket) *{{.MapItemTypeName}}BucketVector {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
 	}
 
 	if uint(i) >= v.tailOffset() {
-		newTail := make([]{{.MapBucketTypeName}}, len(v.tail))
+		newTail := make([]{{.MapItemTypeName}}Bucket, len(v.tail))
 		copy(newTail, v.tail)
 		newTail[i&shiftBitMask] = item
-		return &{{.MapBucketTypeName}}Vector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
+		return &{{.MapItemTypeName}}BucketVector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
 	}
 
-	return &{{.MapBucketTypeName}}Vector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
+	return &{{.MapItemTypeName}}BucketVector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
 }
 
-func (v *{{.MapBucketTypeName}}Vector) doAssoc(level uint, node commonNode, i uint, item {{.MapBucketTypeName}}) commonNode {
+func (v *{{.MapItemTypeName}}BucketVector) doAssoc(level uint, node commonNode, i uint, item {{.MapItemTypeName}}Bucket) commonNode {
 	if level == 0 {
-		ret := make([]{{.MapBucketTypeName}}, nodeSize)
-		copy(ret, node.([]{{.MapBucketTypeName}}))
+		ret := make([]{{.MapItemTypeName}}Bucket, nodeSize)
+		copy(ret, node.([]{{.MapItemTypeName}}Bucket))
 		ret[i&shiftBitMask] = item
 		return ret
 	}
@@ -361,7 +361,7 @@ func (v *{{.MapBucketTypeName}}Vector) doAssoc(level uint, node commonNode, i ui
 	return ret
 }
 
-func (v *{{.MapBucketTypeName}}Vector) pushTail(level uint, parent commonNode, tailNode []{{.MapBucketTypeName}}) commonNode {
+func (v *{{.MapItemTypeName}}BucketVector) pushTail(level uint, parent commonNode, tailNode []{{.MapItemTypeName}}Bucket) commonNode {
 	subIdx := ((v.len - 1) >> level) & shiftBitMask
 	parentNode := parent.([]commonNode)
 	ret := make([]commonNode, subIdx+1)
@@ -380,7 +380,7 @@ func (v *{{.MapBucketTypeName}}Vector) pushTail(level uint, parent commonNode, t
 	return ret
 }
 
-func (v *{{.MapBucketTypeName}}Vector) Append(item ...{{.MapBucketTypeName}}) *{{.MapBucketTypeName}}Vector {
+func (v *{{.MapItemTypeName}}BucketVector) Append(item ...{{.MapItemTypeName}}Bucket) *{{.MapItemTypeName}}BucketVector {
 	result := v
 	itemLen := uint(len(item))
 	for insertOffset := uint(0); insertOffset < itemLen; {
@@ -388,23 +388,23 @@ func (v *{{.MapBucketTypeName}}Vector) Append(item ...{{.MapBucketTypeName}}) *{
 		tailFree := nodeSize - tailLen
 		if tailFree == 0 {
 			result = result.pushLeafNode(result.tail)
-			result.tail = empty{{.MapBucketTypeName}}Vector.tail
+			result.tail = emptyGenericBucketVector.tail
 			tailFree = nodeSize
 			tailLen = 0
 		}
 
 		batchLen := uintMin(itemLen-insertOffset, tailFree)
-		newTail := make([]{{.MapBucketTypeName}}, 0, tailLen+batchLen)
+		newTail := make([]{{.MapItemTypeName}}Bucket, 0, tailLen+batchLen)
 		newTail = append(newTail, result.tail...)
 		newTail = append(newTail, item[insertOffset:insertOffset+batchLen]...)
-		result = &{{.MapBucketTypeName}}Vector{root: result.root, tail: newTail, len: result.len + batchLen, shift: result.shift}
+		result = &{{.MapItemTypeName}}BucketVector{root: result.root, tail: newTail, len: result.len + batchLen, shift: result.shift}
 		insertOffset += batchLen
 	}
 
 	return result
 }
 
-func (v *{{.MapBucketTypeName}}Vector) pushLeafNode(node []{{.MapBucketTypeName}}) *{{.MapBucketTypeName}}Vector {
+func (v *{{.MapItemTypeName}}BucketVector) pushLeafNode(node []{{.MapItemTypeName}}Bucket) *{{.MapItemTypeName}}BucketVector {
 	var newRoot commonNode
 	newShift := v.shift
 
@@ -417,34 +417,34 @@ func (v *{{.MapBucketTypeName}}Vector) pushLeafNode(node []{{.MapBucketTypeName}
 		newRoot = v.pushTail(v.shift, v.root, node)
 	}
 
-	return &{{.MapBucketTypeName}}Vector{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
+	return &{{.MapItemTypeName}}BucketVector{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
 }
 
-func (v *{{.MapBucketTypeName}}Vector) Len() int {
+func (v *{{.MapItemTypeName}}BucketVector) Len() int {
 	return int(v.len)
 }
 
-func (v *{{.MapBucketTypeName}}Vector) Iter() *{{.MapBucketTypeName}}VectorIterator {
-	return new{{.MapBucketTypeName}}VectorIterator(v, 0, v.Len())
+func (v *{{.MapItemTypeName}}BucketVector) Iter() *GenericBucketVectorIterator {
+	return newGenericBucketVectorIterator(v, 0, v.Len())
 }
 
 //////////////////
 //// Iterator ////
 //////////////////
 
-type {{.MapBucketTypeName}}VectorIterator struct {
-	vector      *{{.MapBucketTypeName}}Vector
-	currentNode []{{.MapBucketTypeName}}
+type GenericBucketVectorIterator struct {
+	vector      *{{.MapItemTypeName}}BucketVector
+	currentNode []{{.MapItemTypeName}}Bucket
 	stop, pos   int
 }
 
-func new{{.MapBucketTypeName}}VectorIterator(vector *{{.MapBucketTypeName}}Vector, start, stop int) *{{.MapBucketTypeName}}VectorIterator {
-	it := {{.MapBucketTypeName}}VectorIterator{vector: vector, pos: start, stop: stop}
+func newGenericBucketVectorIterator(vector *{{.MapItemTypeName}}BucketVector, start, stop int) *GenericBucketVectorIterator {
+	it := GenericBucketVectorIterator{vector: vector, pos: start, stop: stop}
 	it.currentNode = vector.sliceFor(uint(it.pos))
 	return &it
 }
 
-func (it *{{.MapBucketTypeName}}VectorIterator) Next() (value {{.MapBucketTypeName}}, ok bool) {
+func (it *GenericBucketVectorIterator) Next() (value {{.MapItemTypeName}}Bucket, ok bool) {
 	if it.pos >= it.stop {
 		return value, false
 	}

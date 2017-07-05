@@ -30,11 +30,6 @@ func usage(fs *flag.FlagSet) func() {
 	}
 }
 
-type vectorSpec struct {
-	VectorTypeName string
-	TypeName       string
-}
-
 type templateSpec struct {
 	name     string
 	template string
@@ -60,7 +55,7 @@ func renderTemplates(specs []templateSpec, templateData interface{}, dst io.Writ
 func main() {
 	flagset := flag.NewFlagSet("server", flag.ExitOnError)
 	var (
-		//		maps = flagset.String("maps", "", "Map1<int,string>;Map2<float,int>")
+		maps = flagset.String("maps", "", "Map1<int,string>;Map2<float,int>")
 		//		sets = flagset.String("sets", "", "Set1<int>")
 		//		imports = flagset.String("imports", "", "import1;import2")
 
@@ -83,19 +78,39 @@ func main() {
 		log.Fatal(err)
 	}
 
-	vectorSpecs, err := parseVectorSpecs(*vectors)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, spec := range vectorSpecs {
-		err := renderTemplates([]templateSpec{
-			{name: "vector", template: templates.VectorTemplate},
-			{name: "slice", template: templates.SliceTemplate}},
-			spec, &buf)
-
+	if *vectors != "" {
+		vectorSpecs, err := parseVectorSpecs(*vectors)
 		if err != nil {
 			log.Fatal(err)
+		}
+
+		for _, spec := range vectorSpecs {
+			err := renderTemplates([]templateSpec{
+				{name: "vector", template: templates.VectorTemplate},
+				{name: "slice", template: templates.SliceTemplate}},
+				spec, &buf)
+
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+
+	if *maps != "" {
+		mapSpecs, err := parseMapSpecs(*maps)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for _, spec := range mapSpecs {
+			err := renderTemplates([]templateSpec{
+				{name: "private_map_template", template: templates.PrivateMapTemplate},
+				{name: "public_map_template", template: templates.PublicMapTemplate}},
+				spec, &buf)
+
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 
@@ -114,6 +129,11 @@ func main() {
 	f.Write(src)
 }
 
+type vectorSpec struct {
+	VectorTypeName string
+	TypeName       string
+}
+
 func parseVectorSpecs(vectorDescriptor string) ([]vectorSpec, error) {
 	result := make([]vectorSpec, 0)
 	descriptors := strings.Split(vectorDescriptor, ";")
@@ -125,6 +145,29 @@ func parseVectorSpecs(vectorDescriptor string) ([]vectorSpec, error) {
 		}
 
 		result = append(result, vectorSpec{VectorTypeName: m[1], TypeName: m[2]})
+	}
+
+	return result, nil
+}
+
+type mapSpec struct {
+	MapTypeName      string
+	MapItemTypeName  string
+	MapKeyTypeName   string
+	MapValueTypeName string
+}
+
+func parseMapSpecs(mapDescriptor string) ([]mapSpec, error) {
+	result := make([]mapSpec, 0)
+	descriptors := strings.Split(mapDescriptor, ";")
+	r := regexp.MustCompile(`([A-Za-z0-9]+)<([A-Za-z0-9.]+),([A-Za-z0-9.]+)>`)
+	for _, d := range descriptors {
+		m := r.FindStringSubmatch(strings.TrimSpace(d))
+		if len(m) != 4 {
+			return nil, fmt.Errorf("Invalid map specification: %s", d)
+		}
+
+		result = append(result, mapSpec{MapTypeName: m[1], MapItemTypeName: m[1] + "Item", MapKeyTypeName: m[2], MapValueTypeName: m[3]})
 	}
 
 	return result, nil

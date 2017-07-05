@@ -6,7 +6,7 @@ if __name__ == "__main__":
     template_package_name = 'templates'
     generic_types = {'GenericVectorType': 'VectorTypeName',
                      'GenericType': 'TypeName',
-                     'GenericBucket': 'MapBucketTypeName',
+                     'GenericMapType': 'MapTypeName',
                      'GenericMapItem': 'MapItemTypeName',
                      'GenericMapKeyType': 'MapKeyTypeName',
                      'GenericMapValueType': 'MapValueTypeName'}

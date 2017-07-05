@@ -285,7 +285,7 @@ func (s *GenericVectorTypeSlice) Iter() *GenericVectorTypeIterator {
 	return newGenericVectorTypeIterator(s.vector, s.start, s.stop)
 }
 
-//template:privateMapTemplate
+//template:PrivateMapTemplate
 
 ///////////
 /// Map ///
@@ -295,8 +295,8 @@ func (s *GenericVectorTypeSlice) Iter() *GenericVectorTypeIterator {
 /// Backing vector ///
 /////////////////////
 
-type GenericBucketVector struct {
-	tail  []GenericBucket
+type GenericMapItemBucketVector struct {
+	tail  []GenericMapItemBucket
 	root  commonNode
 	len   uint
 	shift uint
@@ -307,12 +307,12 @@ type GenericMapItem struct {
 	Value GenericMapValueType
 }
 
-type GenericBucket []GenericMapItem
+type GenericMapItemBucket []GenericMapItem
 
-var emptyGenericBucketTail = make([]GenericBucket, 0)
-var emptyGenericBucketVector *GenericBucketVector = &GenericBucketVector{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericBucketTail}
+var emptyGenericBucketTail = make([]GenericMapItemBucket, 0)
+var emptyGenericBucketVector *GenericMapItemBucketVector = &GenericMapItemBucketVector{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericBucketTail}
 
-func (v *GenericBucketVector) Get(i int) GenericBucket {
+func (v *GenericMapItemBucketVector) Get(i int) GenericMapItemBucket {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
 	}
@@ -320,7 +320,7 @@ func (v *GenericBucketVector) Get(i int) GenericBucket {
 	return v.sliceFor(uint(i))[i&shiftBitMask]
 }
 
-func (v *GenericBucketVector) sliceFor(i uint) []GenericBucket {
+func (v *GenericMapItemBucketVector) sliceFor(i uint) []GenericMapItemBucket {
 	if i >= v.tailOffset() {
 		return v.tail
 	}
@@ -330,10 +330,10 @@ func (v *GenericBucketVector) sliceFor(i uint) []GenericBucket {
 		node = node.([]commonNode)[(i>>level)&shiftBitMask]
 	}
 
-	return node.([]GenericBucket)
+	return node.([]GenericMapItemBucket)
 }
 
-func (v *GenericBucketVector) tailOffset() uint {
+func (v *GenericMapItemBucketVector) tailOffset() uint {
 	if v.len < nodeSize {
 		return 0
 	}
@@ -341,25 +341,25 @@ func (v *GenericBucketVector) tailOffset() uint {
 	return ((v.len - 1) >> shiftSize) << shiftSize
 }
 
-func (v *GenericBucketVector) Set(i int, item GenericBucket) *GenericBucketVector {
+func (v *GenericMapItemBucketVector) Set(i int, item GenericMapItemBucket) *GenericMapItemBucketVector {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
 	}
 
 	if uint(i) >= v.tailOffset() {
-		newTail := make([]GenericBucket, len(v.tail))
+		newTail := make([]GenericMapItemBucket, len(v.tail))
 		copy(newTail, v.tail)
 		newTail[i&shiftBitMask] = item
-		return &GenericBucketVector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
+		return &GenericMapItemBucketVector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
 	}
 
-	return &GenericBucketVector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
+	return &GenericMapItemBucketVector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
 }
 
-func (v *GenericBucketVector) doAssoc(level uint, node commonNode, i uint, item GenericBucket) commonNode {
+func (v *GenericMapItemBucketVector) doAssoc(level uint, node commonNode, i uint, item GenericMapItemBucket) commonNode {
 	if level == 0 {
-		ret := make([]GenericBucket, nodeSize)
-		copy(ret, node.([]GenericBucket))
+		ret := make([]GenericMapItemBucket, nodeSize)
+		copy(ret, node.([]GenericMapItemBucket))
 		ret[i&shiftBitMask] = item
 		return ret
 	}
@@ -371,7 +371,7 @@ func (v *GenericBucketVector) doAssoc(level uint, node commonNode, i uint, item 
 	return ret
 }
 
-func (v *GenericBucketVector) pushTail(level uint, parent commonNode, tailNode []GenericBucket) commonNode {
+func (v *GenericMapItemBucketVector) pushTail(level uint, parent commonNode, tailNode []GenericMapItemBucket) commonNode {
 	subIdx := ((v.len - 1) >> level) & shiftBitMask
 	parentNode := parent.([]commonNode)
 	ret := make([]commonNode, subIdx+1)
@@ -390,7 +390,7 @@ func (v *GenericBucketVector) pushTail(level uint, parent commonNode, tailNode [
 	return ret
 }
 
-func (v *GenericBucketVector) Append(item ...GenericBucket) *GenericBucketVector {
+func (v *GenericMapItemBucketVector) Append(item ...GenericMapItemBucket) *GenericMapItemBucketVector {
 	result := v
 	itemLen := uint(len(item))
 	for insertOffset := uint(0); insertOffset < itemLen; {
@@ -404,17 +404,17 @@ func (v *GenericBucketVector) Append(item ...GenericBucket) *GenericBucketVector
 		}
 
 		batchLen := uintMin(itemLen-insertOffset, tailFree)
-		newTail := make([]GenericBucket, 0, tailLen+batchLen)
+		newTail := make([]GenericMapItemBucket, 0, tailLen+batchLen)
 		newTail = append(newTail, result.tail...)
 		newTail = append(newTail, item[insertOffset:insertOffset+batchLen]...)
-		result = &GenericBucketVector{root: result.root, tail: newTail, len: result.len + batchLen, shift: result.shift}
+		result = &GenericMapItemBucketVector{root: result.root, tail: newTail, len: result.len + batchLen, shift: result.shift}
 		insertOffset += batchLen
 	}
 
 	return result
 }
 
-func (v *GenericBucketVector) pushLeafNode(node []GenericBucket) *GenericBucketVector {
+func (v *GenericMapItemBucketVector) pushLeafNode(node []GenericMapItemBucket) *GenericMapItemBucketVector {
 	var newRoot commonNode
 	newShift := v.shift
 
@@ -427,14 +427,14 @@ func (v *GenericBucketVector) pushLeafNode(node []GenericBucket) *GenericBucketV
 		newRoot = v.pushTail(v.shift, v.root, node)
 	}
 
-	return &GenericBucketVector{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
+	return &GenericMapItemBucketVector{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
 }
 
-func (v *GenericBucketVector) Len() int {
+func (v *GenericMapItemBucketVector) Len() int {
 	return int(v.len)
 }
 
-func (v *GenericBucketVector) Iter() *GenericBucketVectorIterator {
+func (v *GenericMapItemBucketVector) Iter() *GenericBucketVectorIterator {
 	return newGenericBucketVectorIterator(v, 0, v.Len())
 }
 
@@ -443,18 +443,18 @@ func (v *GenericBucketVector) Iter() *GenericBucketVectorIterator {
 //////////////////
 
 type GenericBucketVectorIterator struct {
-	vector      *GenericBucketVector
-	currentNode []GenericBucket
+	vector      *GenericMapItemBucketVector
+	currentNode []GenericMapItemBucket
 	stop, pos   int
 }
 
-func newGenericBucketVectorIterator(vector *GenericBucketVector, start, stop int) *GenericBucketVectorIterator {
+func newGenericBucketVectorIterator(vector *GenericMapItemBucketVector, start, stop int) *GenericBucketVectorIterator {
 	it := GenericBucketVectorIterator{vector: vector, pos: start, stop: stop}
 	it.currentNode = vector.sliceFor(uint(it.pos))
 	return &it
 }
 
-func (it *GenericBucketVectorIterator) Next() (value GenericBucket, ok bool) {
+func (it *GenericBucketVectorIterator) Next() (value GenericMapItemBucket, ok bool) {
 	if it.pos >= it.stop {
 		return value, false
 	}
@@ -468,14 +468,14 @@ func (it *GenericBucketVectorIterator) Next() (value GenericBucket, ok bool) {
 	return value, true
 }
 
-//template:publicMapTemplate
+//template:PublicMapTemplate
 
 ////////////////////////
 /// Public functions ///
 ////////////////////////
 
 type GenericMapType struct {
-	backingVector GenericBucketVector
+	backingVector GenericMapItemBucketVector
 	len           int
 }
 

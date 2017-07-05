@@ -7,9 +7,11 @@ build: dev_generate
 install: dev_generate
 	go install github.com/tobgu/peds/cmd/peds/
 
+fmt:
+	go fmt ./...
+
 test: install
 	-rm tests/vector_test_gen.go
-	-rm tests/map_test_gen.go
 	cd tests && go generate
 	go test ./...
 
