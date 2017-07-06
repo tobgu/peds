@@ -18,6 +18,13 @@ func assertEqual(t *testing.T, expected, actual int) {
 	}
 }
 
+func assertEqualBool(t *testing.T, expected, actual bool) {
+	if expected != actual {
+		_, file, line, _ := runtime.Caller(1)
+		t.Errorf("Error %s, line %d. Expected: %d, actual: %d", file, line, expected, actual)
+	}
+}
+
 func assertPanic(t *testing.T, expectedMsg string) {
 	if r := recover(); r == nil {
 		_, _, line, _ := runtime.Caller(1)

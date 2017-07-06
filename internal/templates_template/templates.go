@@ -2,8 +2,10 @@ package templates_template
 
 //template:CommonTemplate
 
+// TODO: Need a way to specify imports required by different pieces of the code
 import (
 	"fmt"
+	"hash/fnv"
 )
 
 const shiftSize = 5
@@ -468,15 +470,113 @@ func (it *GenericBucketVectorIterator) Next() (value GenericMapItemBucket, ok bo
 	return value, true
 }
 
+type GenericMapType struct {
+	backingVector *GenericMapItemBucketVector
+	len           int
+}
+
+/////////////////////////
+/// Private functions ///
+/////////////////////////
+
+func (m *GenericMapType) pos(key GenericMapKeyType) int {
+	return int(genericHashFunc(key) % uint64(m.backingVector.Len()))
+}
+
+func (m *GenericMapType) load(key GenericMapKeyType) (value GenericMapValueType, ok bool) {
+	bucket := m.backingVector.Get(m.pos(key))
+	if bucket != nil {
+		for _, item := range bucket {
+			if item.Key == key {
+				return item.Value, true
+			}
+		}
+	}
+
+	// TODO: The zero value must differ between types
+	// return GenericMapValueZeroValue, false
+	return 0, false
+}
+
+func (m *GenericMapType) store(key GenericMapKeyType, value GenericMapValueType) *GenericMapType {
+	pos := m.pos(key)
+	bucket := m.backingVector.Get(pos)
+	if bucket != nil {
+		for ix, item := range bucket {
+			if item.Key == key {
+				// Overwrite existing item
+				newBucket := make(GenericMapItemBucket, len(bucket))
+				copy(newBucket, bucket)
+				newBucket[ix] = GenericMapItem{Key: key, Value: value}
+				return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len}
+			}
+		}
+
+		// Add new item to bucket
+		newBucket := make(GenericMapItemBucket, len(bucket), len(bucket)+1)
+		copy(newBucket, bucket)
+		newBucket = append(newBucket, GenericMapItem{Key: key, Value: value})
+		return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len + 1}
+	}
+
+	item := GenericMapItem{Key: key, Value: value}
+	newBucket := GenericMapItemBucket{item}
+	return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len + 1}
+}
+
+// TODO: Move this into separate template
+func hash(s string) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(s))
+	return h.Sum64()
+}
+
+func genericHashFunc(x interface{}) uint64 {
+	return hash(fmt.Sprintf("%v", x))
+}
+
+// TODO:
+// - Delete
+// - Resizing
+// - Iteration
+// - Insert multiple items with same key upon creation
+
 //template:PublicMapTemplate
 
 ////////////////////////
 /// Public functions ///
 ////////////////////////
 
-type GenericMapType struct {
-	backingVector GenericMapItemBucketVector
-	len           int
+func NewGenericMapType(items ...GenericMapItem) *GenericMapType {
+	// TODO: Vary size depending on input size
+	vectorSize := nodeSize
+	input := make([]GenericMapItemBucket, vectorSize)
+	length := 0
+	for _, item := range items {
+		ix := int(genericHashFunc(item) % uint64(vectorSize))
+		bucket := input[ix]
+		if bucket != nil {
+			// Hash collision, merge with existing bucket
+			found := false
+			for keyIx, bItem := range bucket {
+				if item.Key == bItem.Key {
+					bucket[keyIx] = item
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				input[ix] = append(bucket, GenericMapItem{Key: item.Key, Value: item.Value})
+				length++
+			}
+		} else {
+			input[ix] = GenericMapItemBucket{item}
+			length++
+		}
+	}
+
+	return &GenericMapType{backingVector: emptyGenericBucketVector.Append(input...), len: length}
 }
 
 func (m *GenericMapType) Len() int {
@@ -484,12 +584,11 @@ func (m *GenericMapType) Len() int {
 }
 
 func (m *GenericMapType) Load(key GenericMapKeyType) (value GenericMapValueType, ok bool) {
-	var temp GenericMapValueType
-	return temp, false
+	return m.load(key)
 }
 
 func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType) *GenericMapType {
-	return &GenericMapType{}
+	return m.store(key, value)
 }
 
 func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {

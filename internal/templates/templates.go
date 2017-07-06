@@ -6,9 +6,36 @@ const PublicMapTemplate string = `
 /// Public functions ///
 ////////////////////////
 
-type {{.MapTypeName}} struct {
-	backingVector {{.MapItemTypeName}}BucketVector
-	len           int
+func New{{.MapTypeName}}(items... {{.MapItemTypeName}}) *{{.MapTypeName}} {
+	// TODO: Vary size depending on input size
+	vectorSize := nodeSize
+	input := make([]{{.MapItemTypeName}}Bucket, vectorSize)
+	length := 0
+	for _, item := range items {
+		ix := int(genericHashFunc(item) % uint64(vectorSize))
+		bucket := input[ix]
+		if bucket != nil {
+			// Hash collision, merge with existing bucket
+			found := false
+			for keyIx, bItem := range bucket {
+				if item.Key == bItem.Key {
+					bucket[keyIx] = item
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				input[ix] = append(bucket, {{.MapItemTypeName}}{Key: item.Key, Value: item.Value})
+				length++
+			}
+		} else {
+			input[ix] = {{.MapItemTypeName}}Bucket{item}
+			length++
+		}
+	}
+
+	return &{{.MapTypeName}}{backingVector: emptyGenericBucketVector.Append(input...), len: length}
 }
 
 func (m *{{.MapTypeName}}) Len() int {
@@ -16,12 +43,11 @@ func (m *{{.MapTypeName}}) Len() int {
 }
 
 func (m *{{.MapTypeName}}) Load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeName}}, ok bool) {
-	var temp {{.MapValueTypeName}}
-	return temp, false
+	return m.load(key)
 }
 
 func (m *{{.MapTypeName}}) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) *{{.MapTypeName}} {
-	return &{{.MapTypeName}}{}
+	return m.store(key, value)
 }
 
 func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
@@ -233,8 +259,10 @@ func (it *{{.VectorTypeName}}Iterator) Next() (value {{.TypeName}}, ok bool) {
 
 `
 const CommonTemplate string = `
+// TODO: Need a way to specify imports required by different pieces of the code
 import (
 	"fmt"
+	"hash/fnv"
 )
 
 const shiftSize = 5
@@ -457,6 +485,77 @@ func (it *GenericBucketVectorIterator) Next() (value {{.MapItemTypeName}}Bucket,
 	it.pos++
 	return value, true
 }
+
+type {{.MapTypeName}} struct {
+	backingVector *{{.MapItemTypeName}}BucketVector
+	len           int
+}
+
+/////////////////////////
+/// Private functions ///
+/////////////////////////
+
+func (m *{{.MapTypeName}}) pos(key {{.MapKeyTypeName}}) int {
+	return int(genericHashFunc(key) % uint64(m.backingVector.Len()))
+}
+
+func (m *{{.MapTypeName}}) load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeName}}, ok bool) {
+	bucket := m.backingVector.Get(m.pos(key))
+	if bucket != nil {
+		for _, item := range bucket {
+			if item.Key == key {
+				return item.Value, true
+			}
+		}
+	}
+
+	// TODO: The zero value must differ between types
+	// return GenericMapValueZeroValue, false
+	return 0, false
+}
+
+func (m *{{.MapTypeName}}) store(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) *{{.MapTypeName}} {
+	pos := m.pos(key)
+	bucket := m.backingVector.Get(pos)
+	if bucket != nil {
+		for ix, item := range bucket {
+			if item.Key == key {
+				// Overwrite existing item
+				newBucket := make({{.MapItemTypeName}}Bucket, len(bucket))
+				copy(newBucket, bucket)
+				newBucket[ix] = {{.MapItemTypeName}}{Key: key, Value: value}
+				return &{{.MapTypeName}}{backingVector: m.backingVector.Set(pos, newBucket), len: m.len}
+			}
+		}
+
+		// Add new item to bucket
+		newBucket := make({{.MapItemTypeName}}Bucket, len(bucket), len(bucket) + 1)
+		copy(newBucket, bucket)
+		newBucket = append(newBucket, {{.MapItemTypeName}}{Key: key, Value: value})
+		return &{{.MapTypeName}}{backingVector: m.backingVector.Set(pos, newBucket), len: m.len+1}
+	}
+
+	item := {{.MapItemTypeName}}{Key: key, Value: value}
+	newBucket := {{.MapItemTypeName}}Bucket{item}
+	return &{{.MapTypeName}}{backingVector: m.backingVector.Set(pos, newBucket), len: m.len+1}
+}
+
+// TODO: Move this into separate template
+func hash(s string) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(s))
+	return h.Sum64()
+}
+
+func genericHashFunc(x interface{}) uint64 {
+	return hash(fmt.Sprintf("%v", x))
+}
+
+// TODO:
+// - Delete
+// - Resizing
+// - Iteration
+// - Insert multiple items with same key upon creation
 
 `
 const SliceTemplate string = `
