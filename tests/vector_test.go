@@ -44,7 +44,7 @@ func assertPanic(t *testing.T, expectedMsg string) {
 	}
 }
 
-func inputArray(start, size int) []int {
+func inputSlice(start, size int) []int {
 	result := make([]int, 0, size)
 	for i := start; i < start+size; i++ {
 		result = append(result, i)
@@ -55,17 +55,17 @@ func inputArray(start, size int) []int {
 
 var testSizes = []int{0, 1, 20, 32, 33, 50, 500, 32 * 32, 32*32 + 1, 10000, 32 * 32 * 32, 32*32*32 + 1}
 
-/////////////
-/// Array ///
-/////////////
+//////////////
+/// Vector ///
+//////////////
 
-func TestPropertiesOfNewArray(t *testing.T) {
+func TestPropertiesOfNewVector(t *testing.T) {
 	for _, l := range testSizes {
-		t.Run(fmt.Sprintf("NewArray %d", l), func(t *testing.T) {
-			arr := NewIntVector(inputArray(0, l)...)
-			assertEqual(t, arr.Len(), l)
+		t.Run(fmt.Sprintf("NewVector %d", l), func(t *testing.T) {
+			vec := NewIntVector(inputSlice(0, l)...)
+			assertEqual(t, vec.Len(), l)
 			for i := 0; i < l; i++ {
-				assertEqual(t, i, arr.Get(i))
+				assertEqual(t, i, vec.Get(i))
 			}
 		})
 	}
@@ -74,11 +74,11 @@ func TestPropertiesOfNewArray(t *testing.T) {
 func TestSetItem(t *testing.T) {
 	for _, l := range testSizes {
 		t.Run(fmt.Sprintf("Set %d", l), func(t *testing.T) {
-			arr := NewIntVector(inputArray(0, l)...)
+			vec := NewIntVector(inputSlice(0, l)...)
 			for i := 0; i < l; i++ {
-				newArr := arr.Set(i, -i)
+				newArr := vec.Set(i, -i)
 				assertEqual(t, -i, newArr.Get(i))
-				assertEqual(t, i, arr.Get(i))
+				assertEqual(t, i, vec.Get(i))
 			}
 		})
 	}
@@ -86,43 +86,43 @@ func TestSetItem(t *testing.T) {
 
 func TestAppend(t *testing.T) {
 	for _, l := range testSizes {
-		arr := NewIntVector(inputArray(0, l)...)
+		vec := NewIntVector(inputSlice(0, l)...)
 		t.Run(fmt.Sprintf("Append %d", l), func(t *testing.T) {
 			for i := 0; i < 70; i++ {
-				newArr := arr.Append(inputArray(l, i)...)
-				assertEqual(t, i+l, newArr.Len())
+				newVec := vec.Append(inputSlice(l, i)...)
+				assertEqual(t, i+l, newVec.Len())
 				for j := 0; j < i+l; j++ {
-					assertEqual(t, j, newArr.Get(j))
+					assertEqual(t, j, newVec.Get(j))
 				}
 
-				// Original array is unchanged
-				assertEqual(t, l, arr.Len())
+				// Original vector is unchanged
+				assertEqual(t, l, vec.Len())
 			}
 		})
 	}
 }
 
-func TestArraySetOutOfBoundsNegative(t *testing.T) {
+func TestVectorSetOutOfBoundsNegative(t *testing.T) {
 	defer assertPanic(t, "Index out of bounds")
-	NewIntVector(inputArray(0, 10)...).Set(-1, 0)
+	NewIntVector(inputSlice(0, 10)...).Set(-1, 0)
 }
 
-func TestArraySetOutOfBoundsBeyondEnd(t *testing.T) {
+func TestVectorSetOutOfBoundsBeyondEnd(t *testing.T) {
 	defer assertPanic(t, "Index out of bounds")
-	NewIntVector(inputArray(0, 10)...).Set(10, 0)
+	NewIntVector(inputSlice(0, 10)...).Set(10, 0)
 }
 
-func TestArrayGetOutOfBoundsNegative(t *testing.T) {
+func TestVectorGetOutOfBoundsNegative(t *testing.T) {
 	defer assertPanic(t, "Index out of bounds")
-	NewIntVector(inputArray(0, 10)...).Get(-1)
+	NewIntVector(inputSlice(0, 10)...).Get(-1)
 }
 
-func TestArrayGetOutOfBoundsBeyondEnd(t *testing.T) {
+func TestVectorGetOutOfBoundsBeyondEnd(t *testing.T) {
 	defer assertPanic(t, "Index out of bounds")
-	NewIntVector(inputArray(0, 10)...).Get(10)
+	NewIntVector(inputSlice(0, 10)...).Get(10)
 }
 
-func TestArraySliceOutOfBounds(t *testing.T) {
+func TestVectorSliceOutOfBounds(t *testing.T) {
 	tests := []struct {
 		start, stop int
 		msg         string
@@ -135,7 +135,7 @@ func TestArraySliceOutOfBounds(t *testing.T) {
 	for _, s := range tests {
 		t.Run(fmt.Sprintf("start=%d, stop=%d", s.start, s.stop), func(t *testing.T) {
 			defer assertPanic(t, s.msg)
-			NewIntVector(inputArray(0, 10)...).Slice(s.start, s.stop)
+			NewIntVector(inputSlice(0, 10)...).Slice(s.start, s.stop)
 		})
 	}
 }
@@ -145,9 +145,9 @@ func TestArraySliceOutOfBounds(t *testing.T) {
 //////////////
 
 func TestIteration(t *testing.T) {
-	input := inputArray(0, 10000)
-	arr := NewIntVector(input...)
-	iter := arr.Iter()
+	input := inputSlice(0, 10000)
+	vec := NewIntVector(input...)
+	iter := vec.Iter()
 	dst := make([]int, 0, 10000)
 	for elem, ok := iter.Next(); ok; elem, ok = iter.Next() {
 		dst = append(dst, elem)
@@ -164,9 +164,9 @@ func TestIteration(t *testing.T) {
 /////////////
 
 func TestSliceIndexes(t *testing.T) {
-	arr := NewIntVector(inputArray(0, 1000)...)
-	slice := arr.Slice(0, 10)
-	assertEqual(t, 1000, arr.Len())
+	vec := NewIntVector(inputSlice(0, 1000)...)
+	slice := vec.Slice(0, 10)
+	assertEqual(t, 1000, vec.Len())
 	assertEqual(t, 10, slice.Len())
 	assertEqual(t, 0, slice.Get(0))
 	assertEqual(t, 9, slice.Get(9))
@@ -181,7 +181,7 @@ func TestSliceIndexes(t *testing.T) {
 
 func TestSliceCreation(t *testing.T) {
 	sliceLen := 10000
-	slice := NewIntVectorSlice(inputArray(0, sliceLen)...)
+	slice := NewIntVectorSlice(inputSlice(0, sliceLen)...)
 	assertEqual(t, slice.Len(), sliceLen)
 	for i := 0; i < sliceLen; i++ {
 		assertEqual(t, i, slice.Get(i))
@@ -189,21 +189,21 @@ func TestSliceCreation(t *testing.T) {
 }
 
 func TestSliceSet(t *testing.T) {
-	array := NewIntVector(inputArray(0, 1000)...)
-	slice := array.Slice(10, 100)
+	vector := NewIntVector(inputSlice(0, 1000)...)
+	slice := vector.Slice(10, 100)
 	slice2 := slice.Set(5, 123)
 
-	// Underlying array and original slice should remain unchanged. New slice updated
+	// Underlying vector and original slice should remain unchanged. New slice updated
 	// in the correct position
-	assertEqual(t, 15, array.Get(15))
+	assertEqual(t, 15, vector.Get(15))
 	assertEqual(t, 15, slice.Get(5))
 	assertEqual(t, 123, slice2.Get(5))
 }
 
-func TestSliceAppendInTheMiddleOfBackingArray(t *testing.T) {
-	array := NewIntVector(inputArray(0, 100)...)
-	slice := array.Slice(0, 50)
-	slice2 := slice.Append(inputArray(0, 10)...)
+func TestSliceAppendInTheMiddleOfBackingVector(t *testing.T) {
+	vector := NewIntVector(inputSlice(0, 100)...)
+	slice := vector.Slice(0, 50)
+	slice2 := slice.Append(inputSlice(0, 10)...)
 
 	// New slice
 	assertEqual(t, 60, slice2.Len())
@@ -213,16 +213,16 @@ func TestSliceAppendInTheMiddleOfBackingArray(t *testing.T) {
 	// Original slice
 	assertEqual(t, 50, slice.Len())
 
-	// Original array
-	assertEqual(t, 100, array.Len())
-	assertEqual(t, 50, array.Get(50))
-	assertEqual(t, 59, array.Get(59))
+	// Original vector
+	assertEqual(t, 100, vector.Len())
+	assertEqual(t, 50, vector.Get(50))
+	assertEqual(t, 59, vector.Get(59))
 }
 
-func TestSliceAppendAtTheEndOfBackingArray(t *testing.T) {
-	array := NewIntVector(inputArray(0, 100)...)
-	slice := array.Slice(0, 100)
-	slice2 := slice.Append(inputArray(0, 10)...)
+func TestSliceAppendAtTheEndOfBackingVector(t *testing.T) {
+	vector := NewIntVector(inputSlice(0, 100)...)
+	slice := vector.Slice(0, 100)
+	slice2 := slice.Append(inputSlice(0, 10)...)
 
 	// New slice
 	assertEqual(t, 110, slice2.Len())
@@ -233,10 +233,10 @@ func TestSliceAppendAtTheEndOfBackingArray(t *testing.T) {
 	assertEqual(t, 100, slice.Len())
 }
 
-func TestSliceAppendAtMiddleToEndOfBackingArray(t *testing.T) {
-	array := NewIntVector(inputArray(0, 100)...)
-	slice := array.Slice(0, 50)
-	slice2 := slice.Append(inputArray(0, 100)...)
+func TestSliceAppendAtMiddleToEndOfBackingVector(t *testing.T) {
+	vector := NewIntVector(inputSlice(0, 100)...)
+	slice := vector.Slice(0, 50)
+	slice2 := slice.Append(inputSlice(0, 100)...)
 
 	// New slice
 	assertEqual(t, 150, slice2.Len())
@@ -248,8 +248,8 @@ func TestSliceAppendAtMiddleToEndOfBackingArray(t *testing.T) {
 }
 
 func TestSliceIteration(t *testing.T) {
-	arr := NewIntVector(inputArray(0, 1000)...)
-	iter := arr.Slice(5, 200).Iter()
+	vec := NewIntVector(inputSlice(0, 1000)...)
+	iter := vec.Slice(5, 200).Iter()
 	dst := make([]int, 0)
 	for elem, ok := iter.Next(); ok; elem, ok = iter.Next() {
 		dst = append(dst, elem)
@@ -263,22 +263,22 @@ func TestSliceIteration(t *testing.T) {
 
 func TestSliceSetOutOfBoundsNegative(t *testing.T) {
 	defer assertPanic(t, "Index out of bounds")
-	NewIntVector(inputArray(0, 10)...).Slice(2, 5).Set(-1, 0)
+	NewIntVector(inputSlice(0, 10)...).Slice(2, 5).Set(-1, 0)
 }
 
 func TestSliceSetOutOfBoundsBeyondEnd(t *testing.T) {
 	defer assertPanic(t, "Index out of bounds")
-	NewIntVector(inputArray(0, 10)...).Slice(2, 5).Set(4, 0)
+	NewIntVector(inputSlice(0, 10)...).Slice(2, 5).Set(4, 0)
 }
 
 func TestSliceGetOutOfBoundsNegative(t *testing.T) {
 	defer assertPanic(t, "Index out of bounds")
-	NewIntVector(inputArray(0, 10)...).Slice(2, 5).Get(-1)
+	NewIntVector(inputSlice(0, 10)...).Slice(2, 5).Get(-1)
 }
 
 func TestSliceGetOutOfBoundsBeyondEnd(t *testing.T) {
 	defer assertPanic(t, "Index out of bounds")
-	NewIntVector(inputArray(0, 10)...).Slice(2, 5).Get(4)
+	NewIntVector(inputSlice(0, 10)...).Slice(2, 5).Get(4)
 }
 
 func TestSliceSliceOutOfBounds(t *testing.T) {
@@ -294,7 +294,7 @@ func TestSliceSliceOutOfBounds(t *testing.T) {
 	for _, s := range tests {
 		t.Run(fmt.Sprintf("start=%d, stop=%d", s.start, s.stop), func(t *testing.T) {
 			defer assertPanic(t, s.msg)
-			NewIntVector(inputArray(0, 10)...).Slice(2, 5).Slice(s.start, s.stop)
+			NewIntVector(inputSlice(0, 10)...).Slice(2, 5).Slice(s.start, s.stop)
 		})
 	}
 }
@@ -311,10 +311,10 @@ func TestSliceSliceOutOfBounds(t *testing.T) {
 var result int
 
 func runIteration(b *testing.B, size int) {
-	arr := NewIntVector(inputArray(0, size)...)
+	vec := NewIntVector(inputSlice(0, size)...)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		iter := arr.Iter()
+		iter := vec.Iter()
 		for value, ok := iter.Next(); ok; value, ok = iter.Next() {
 			result += value
 		}
