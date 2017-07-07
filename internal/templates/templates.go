@@ -292,6 +292,32 @@ func (m *{{.MapTypeName}}) store(key {{.MapKeyTypeName}}, value {{.MapValueTypeN
 	return &{{.MapTypeName}}{backingVector: m.backingVector.Set(pos, newBucket), len: m.len + 1}
 }
 
+func (m *{{.MapTypeName}}) delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
+	pos := m.pos(key)
+	bucket := m.backingVector.Get(pos)
+	if bucket != nil {
+		newBucket := make({{.MapItemTypeName}}Bucket, 0)
+		for _, item := range bucket {
+			if item.Key != key {
+				newBucket = append(newBucket, item)
+			}
+		}
+
+		removedItemCount := len(bucket) - len(newBucket)
+		if removedItemCount == 0 {
+			return m
+		}
+
+		if len(newBucket) == 0 {
+			newBucket = nil
+		}
+
+		return &{{.MapTypeName}}{backingVector: m.backingVector.Set(pos, newBucket), len: m.len - removedItemCount}
+	}
+
+	return m
+}
+
 `
 const PublicMapTemplate string = `
 ////////////////////////
@@ -343,7 +369,7 @@ func (m *{{.MapTypeName}}) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeN
 }
 
 func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
-	return &{{.MapTypeName}}{}
+	return m.delete(key)
 }
 
 func (m *{{.MapTypeName}}) Range(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {

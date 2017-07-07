@@ -40,8 +40,41 @@ func TestLoadAndStoreIntKey(t *testing.T) {
 	assertEqualString(t, "", v)
 }
 
-/* TODO:- Delete
-        - Benchmarks insert and access
+func TestLoadAndDeleteExistingItem(t *testing.T) {
+	m := NewStringIntMap()
+	m2 := m.Store("a", 1)
+	m3 := m.Delete("a")
+
+	assertEqual(t, 0, m3.Len())
+	assertEqual(t, 1, m2.Len())
+
+	v, ok := m2.Load("a")
+	assertEqualBool(t, true, ok)
+	assertEqual(t, 1, v)
+
+	v, ok = m3.Load("a")
+	assertEqualBool(t, false, ok)
+	assertEqual(t, 0, v)
+}
+
+func TestLoadAndDeleteNonExistingItem(t *testing.T) {
+	m := NewStringIntMap()
+	m2 := m.Store("a", 1)
+	m3 := m2.Delete("b")
+
+	assertEqual(t, 1, m3.Len())
+	assertEqual(t, 1, m2.Len())
+
+	v, ok := m2.Load("a")
+	assertEqualBool(t, true, ok)
+	assertEqual(t, 1, v)
+
+	if m2 != m3 {
+		t.Errorf("m2 and m3 are not the same object: %p != %p", m2, m3)
+	}
+}
+
+/* TODO:- Benchmarks insert and access
         - Constructor from native map?
         - Improve parsing of specs to allow white spaces etc.
         - Dynamic sizing of backing vector depending on size of the map (which thresholds?)

@@ -533,6 +533,32 @@ func (m *GenericMapType) store(key GenericMapKeyType, value GenericMapValueType)
 	return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len + 1}
 }
 
+func (m *GenericMapType) delete(key GenericMapKeyType) *GenericMapType {
+	pos := m.pos(key)
+	bucket := m.backingVector.Get(pos)
+	if bucket != nil {
+		newBucket := make(GenericMapItemBucket, 0)
+		for _, item := range bucket {
+			if item.Key != key {
+				newBucket = append(newBucket, item)
+			}
+		}
+
+		removedItemCount := len(bucket) - len(newBucket)
+		if removedItemCount == 0 {
+			return m
+		}
+
+		if len(newBucket) == 0 {
+			newBucket = nil
+		}
+
+		return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len - removedItemCount}
+	}
+
+	return m
+}
+
 //template:PublicMapTemplate
 
 ////////////////////////
@@ -584,7 +610,7 @@ func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType)
 }
 
 func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
-	return &GenericMapType{}
+	return m.delete(key)
 }
 
 func (m *GenericMapType) Range(f func(key GenericMapKeyType, value GenericMapValueType) bool) {
