@@ -559,6 +559,17 @@ func (m *GenericMapType) delete(key GenericMapKeyType) *GenericMapType {
 	return m
 }
 
+func (m *GenericMapType) prange(f func(key GenericMapKeyType, value GenericMapValueType) bool) {
+	it := m.backingVector.Iter()
+	for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
+		for _, item := range bucket {
+			if !f(item.Key, item.Value) {
+				return
+			}
+		}
+	}
+}
+
 //template:PublicMapTemplate
 
 ////////////////////////
@@ -614,6 +625,7 @@ func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
 }
 
 func (m *GenericMapType) Range(f func(key GenericMapKeyType, value GenericMapValueType) bool) {
+	m.prange(f)
 }
 
 //template:otherStuff

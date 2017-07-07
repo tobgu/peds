@@ -74,6 +74,33 @@ func TestLoadAndDeleteNonExistingItem(t *testing.T) {
 	}
 }
 
+func TestRangeAllItems(t *testing.T) {
+	m := NewStringIntMap(StringIntMapItem{Key: "a", Value: 1}, StringIntMapItem{Key: "b", Value: 2}, StringIntMapItem{Key: "c", Value: 3})
+	sum := 0
+	m.Range(func(key string, value int) bool {
+		sum += value
+		return true
+	})
+	assertEqual(t, 6, sum)
+}
+
+func TestRangeStopOnKey(t *testing.T) {
+	m := NewStringIntMap(StringIntMapItem{Key: "a", Value: 1}, StringIntMapItem{Key: "b", Value: 2}, StringIntMapItem{Key: "c", Value: 3})
+	count := 0
+	m.Range(func(key string, value int) bool {
+		if key == "c" || key == "b" {
+			return false
+		}
+
+		count++
+		return true
+	})
+
+	if count > 1 {
+		t.Errorf("Did not expect count to be more than 1")
+	}
+}
+
 /* TODO:- Benchmarks insert and access
         - Constructor from native map?
         - Improve parsing of specs to allow white spaces etc.

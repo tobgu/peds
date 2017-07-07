@@ -318,6 +318,17 @@ func (m *{{.MapTypeName}}) delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
 	return m
 }
 
+func (m *{{.MapTypeName}}) prange(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {
+	it := m.backingVector.Iter()
+	for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
+		for _, item := range bucket {
+			if !f(item.Key, item.Value) {
+				return
+			}
+		}
+	}
+}
+
 `
 const PublicMapTemplate string = `
 ////////////////////////
@@ -373,6 +384,7 @@ func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
 }
 
 func (m *{{.MapTypeName}}) Range(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {
+	m.prange(f)
 }
 
 `
