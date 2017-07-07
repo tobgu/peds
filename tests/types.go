@@ -6,7 +6,7 @@ package peds_testing
 type Foo uint
 type Bar float64
 
-//go:generate peds -vectors="FooVector<Foo>;IntVector<int>" -maps="MyMap<string,int>" -pkg=peds_testing -file=vector_test_gen.go
+//go:generate peds -vectors="FooVector<Foo>;IntVector<int>" -maps="StringIntMap<string,int>;IntStringMap<int,string>" -pkg=peds_testing -file=types_gen.go
 
 //  go generate seems to require a function in the file that contains the generation expression...
 func f() {

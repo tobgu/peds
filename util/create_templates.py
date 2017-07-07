@@ -36,7 +36,7 @@ if __name__ == "__main__":
     with open(output_file_name, 'w') as output_file:
         output_file.write('package {}\n\n'.format(template_package_name))
         output_file.write("// NOTE: This file is auto generated, don't edit manually!\n".format(template_package_name))
-        for name, template in templates.items():
+        for name, template in sorted(list(templates.items())):
             for generic_type, variable_name in generic_types.items():
                 template = template.replace(generic_type, '{{{{.{variable_name}}}}}'.format(variable_name=variable_name))
             output_file.write('const {name} string = `'.format(name=name))

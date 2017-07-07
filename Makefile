@@ -11,10 +11,10 @@ fmt:
 	go fmt ./...
 
 test: install
-	-rm tests/vector_test_gen.go
+	rm tests/*_gen.go
 	cd tests && go generate
 	go test ./...
 
 benchmark:
-	rm tests/array_test_gen.go
+	rm tests/*_gen.go
 	cd tests && go generate && go test -bench=.

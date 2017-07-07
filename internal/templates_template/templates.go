@@ -46,6 +46,16 @@ func assertSliceOk(start, stop, len int) {
 	}
 }
 
+func hash(s string) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(s))
+	return h.Sum64()
+}
+
+func genericHashFunc(x interface{}) uint64 {
+	return hash(fmt.Sprintf("%v", x))
+}
+
 //template:VectorTemplate
 
 //////////////
@@ -311,8 +321,8 @@ type GenericMapItem struct {
 
 type GenericMapItemBucket []GenericMapItem
 
-var emptyGenericBucketTail = make([]GenericMapItemBucket, 0)
-var emptyGenericBucketVector *GenericMapItemBucketVector = &GenericMapItemBucketVector{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericBucketTail}
+var emptyGenericMapItemBucketVectorTail = make([]GenericMapItemBucket, 0)
+var emptyGenericMapItemBucketVector *GenericMapItemBucketVector = &GenericMapItemBucketVector{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericMapItemBucketVectorTail}
 
 func (v *GenericMapItemBucketVector) Get(i int) GenericMapItemBucket {
 	if i < 0 || uint(i) >= v.len {
@@ -400,7 +410,7 @@ func (v *GenericMapItemBucketVector) Append(item ...GenericMapItemBucket) *Gener
 		tailFree := nodeSize - tailLen
 		if tailFree == 0 {
 			result = result.pushLeafNode(result.tail)
-			result.tail = emptyGenericBucketVector.tail
+			result.tail = emptyGenericMapItemBucketVector.tail
 			tailFree = nodeSize
 			tailLen = 0
 		}
@@ -436,27 +446,27 @@ func (v *GenericMapItemBucketVector) Len() int {
 	return int(v.len)
 }
 
-func (v *GenericMapItemBucketVector) Iter() *GenericBucketVectorIterator {
-	return newGenericBucketVectorIterator(v, 0, v.Len())
+func (v *GenericMapItemBucketVector) Iter() *GenericMapItemBucketVectorIterator {
+	return newGenericMapItemBucketVectorIterator(v, 0, v.Len())
 }
 
 //////////////////
 //// Iterator ////
 //////////////////
 
-type GenericBucketVectorIterator struct {
+type GenericMapItemBucketVectorIterator struct {
 	vector      *GenericMapItemBucketVector
 	currentNode []GenericMapItemBucket
 	stop, pos   int
 }
 
-func newGenericBucketVectorIterator(vector *GenericMapItemBucketVector, start, stop int) *GenericBucketVectorIterator {
-	it := GenericBucketVectorIterator{vector: vector, pos: start, stop: stop}
+func newGenericMapItemBucketVectorIterator(vector *GenericMapItemBucketVector, start, stop int) *GenericMapItemBucketVectorIterator {
+	it := GenericMapItemBucketVectorIterator{vector: vector, pos: start, stop: stop}
 	it.currentNode = vector.sliceFor(uint(it.pos))
 	return &it
 }
 
-func (it *GenericBucketVectorIterator) Next() (value GenericMapItemBucket, ok bool) {
+func (it *GenericMapItemBucketVectorIterator) Next() (value GenericMapItemBucket, ok bool) {
 	if it.pos >= it.stop {
 		return value, false
 	}
@@ -493,9 +503,8 @@ func (m *GenericMapType) load(key GenericMapKeyType) (value GenericMapValueType,
 		}
 	}
 
-	// TODO: The zero value must differ between types
-	// return GenericMapValueZeroValue, false
-	return 0, false
+	var zeroValue GenericMapValueType
+	return zeroValue, false
 }
 
 func (m *GenericMapType) store(key GenericMapKeyType, value GenericMapValueType) *GenericMapType {
@@ -523,23 +532,6 @@ func (m *GenericMapType) store(key GenericMapKeyType, value GenericMapValueType)
 	newBucket := GenericMapItemBucket{item}
 	return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len + 1}
 }
-
-// TODO: Move this into separate template
-func hash(s string) uint64 {
-	h := fnv.New64a()
-	h.Write([]byte(s))
-	return h.Sum64()
-}
-
-func genericHashFunc(x interface{}) uint64 {
-	return hash(fmt.Sprintf("%v", x))
-}
-
-// TODO:
-// - Delete
-// - Resizing
-// - Iteration
-// - Insert multiple items with same key upon creation
 
 //template:PublicMapTemplate
 
@@ -576,7 +568,7 @@ func NewGenericMapType(items ...GenericMapItem) *GenericMapType {
 		}
 	}
 
-	return &GenericMapType{backingVector: emptyGenericBucketVector.Append(input...), len: length}
+	return &GenericMapType{backingVector: emptyGenericMapItemBucketVector.Append(input...), len: length}
 }
 
 func (m *GenericMapType) Len() int {
@@ -597,6 +589,58 @@ func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
 
 func (m *GenericMapType) Range(f func(key GenericMapKeyType, value GenericMapValueType) bool) {
 }
+
+//template:otherStuff
+
+//////////////////////
+/// Hash functions ///
+//////////////////////
+
+/*
+Types for which special hash functions could be implemented:
+
+uint8       the set of all unsigned  8-bit integers (0 to 255)
+uint16      the set of all unsigned 16-bit integers (0 to 65535)
+uint32      the set of all unsigned 32-bit integers (0 to 4294967295)
+uint64      the set of all unsigned 64-bit integers (0 to 18446744073709551615)
+
+int8        the set of all signed  8-bit integers (-128 to 127)
+int16       the set of all signed 16-bit integers (-32768 to 32767)
+int32       the set of all signed 32-bit integers (-2147483648 to 2147483647)
+int64       the set of all signed 64-bit integers (-9223372036854775808 to 9223372036854775807)
+
+float32     the set of all IEEE-754 32-bit floating-point numbers
+float64     the set of all IEEE-754 64-bit floating-point numbers
+
+complex64   the set of all complex numbers with float32 real and imaginary parts
+complex128  the set of all complex numbers with float64 real and imaginary parts
+
+byte        alias for uint8
+rune        alias for int32
+
+bool
+
+string
+
+Everything else will use the generic hash based on string representation for now.
+
+General idea:
+
+If the generic hash based on string representation currently used proves to be a bottleneck
+implement custom hashes for the above.
+
+Use fnv hash function to start with. If still bottle neck test something like murmur3.
+
+Use binary.LittleEndian.PutUint32 and friends to convert integers to bytes.
+
+Use math.Float64/32bits to convert float to uints.
+
+Equivalent types:
+We may want to denote equivalent types (eg. redefinitions of any of the above types) to make
+it possible to use the faster hash functions for those as well. Perhaps there is some kind
+of introspection possible that would make this possible without user input?
+
+*/
 
 // Check during generation that key is comparable, this can be done using reflection
 // Generate hashing code during generation based on key type (should be possible to get this info from AST or similar)
