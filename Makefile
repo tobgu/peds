@@ -15,6 +15,10 @@ test: install
 	cd tests && go generate
 	go test ./...
 
-benchmark:
+benchmark_vector:
 	rm tests/*_gen.go
-	cd tests && go generate && go test -bench=.
+	cd tests && go generate && go test -bench Iteration -run=^$
+
+benchmark_map:
+	rm tests/*_gen.go
+	cd tests && go generate && go test -bench Map -run=^$

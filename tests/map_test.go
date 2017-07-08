@@ -1,6 +1,9 @@
 package peds_testing
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestLenOfNewMap(t *testing.T) {
 	m := NewStringIntMap()
@@ -101,13 +104,77 @@ func TestRangeStopOnKey(t *testing.T) {
 	}
 }
 
-/* TODO:- Benchmarks insert and access
-        - Constructor from native map?
+//////////////////
+/// Benchmarks ///
+//////////////////
+
+func BenchmarkInsertMap(b *testing.B) {
+	// 5 - 6 times slower than native map
+	// ~50% in store, of which ~14% in hash and ~20% in vector.Set()
+	// ~50 in runtime._ExternalCode (memory allocation?)
+	length := 0
+	for i := 0; i < b.N; i++ {
+		m := NewIntStringMap()
+		for j := 0; j < 1000; j++ {
+			m = m.Store(j, "a")
+		}
+
+		length += m.Len()
+	}
+
+	fmt.Println("Total length", length)
+}
+
+func BenchmarkInsertNativeMap(b *testing.B) {
+	length := 0
+	for i := 0; i < b.N; i++ {
+		m := map[int]string{}
+		for j := 0; j < 1000; j++ {
+			m[j] = "a"
+		}
+
+		length += len(m)
+	}
+
+	fmt.Println("Total length", length)
+}
+
+func BenchmarkAccessMap(b *testing.B) {
+	// 11 - 12 times slower than native map
+	// ~85% of time spent in generic pos function
+	m := NewIntStringMap()
+	for j := 0; j < 1000; j++ {
+		m = m.Store(j, "a")
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < 1000; j++ {
+			_, _ = m.Load(j)
+		}
+	}
+}
+
+func BenchmarkAccessNativeMap(b *testing.B) {
+	m := map[int]string{}
+	for j := 0; j < 1000; j++ {
+		m[j] = "a"
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < 1000; j++ {
+			_, _ = m[j]
+		}
+	}
+}
+
+/* TODO:- Constructor from native map?
         - Improve parsing of specs to allow white spaces etc.
         - Dynamic sizing of backing vector depending on size of the map (which thresholds?)
         - More tests, store and load from larger structures
         - ToNativeMap() function (and ToNativeSlice for vectors?)
         - Custom imports?
         - Non comparable types cannot be used as keys (should be detected during compilation)
-   	    - Custom hash function?
+   	    - Custom hash function for performance.
 */
