@@ -155,6 +155,18 @@ type mapSpec struct {
 	MapItemTypeName  string
 	MapKeyTypeName   string
 	MapValueTypeName string
+	MapKeyHashFunc   string
+}
+
+func hashFunc(typ string) string {
+	for _, hashTyp := range []string{"byte", "bool", "rune", "string",
+		"int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "int", "uint", "float32", "float64"} {
+		if typ == hashTyp {
+			return typ + "Hash"
+		}
+	}
+
+	return "interfaceHash"
 }
 
 func parseMapSpecs(mapDescriptor string) ([]mapSpec, error) {
@@ -167,7 +179,9 @@ func parseMapSpecs(mapDescriptor string) ([]mapSpec, error) {
 			return nil, fmt.Errorf("Invalid map specification: %s", d)
 		}
 
-		result = append(result, mapSpec{MapTypeName: m[1], MapItemTypeName: m[1] + "Item", MapKeyTypeName: m[2], MapValueTypeName: m[3]})
+		keyTypeName := m[2]
+		result = append(result,
+			mapSpec{MapTypeName: m[1], MapItemTypeName: m[1] + "Item", MapKeyTypeName: keyTypeName, MapValueTypeName: m[3], MapKeyHashFunc: hashFunc(keyTypeName)})
 	}
 
 	return result, nil

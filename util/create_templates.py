@@ -9,7 +9,8 @@ if __name__ == "__main__":
                      'GenericMapType': 'MapTypeName',
                      'GenericMapItem': 'MapItemTypeName',
                      'GenericMapKeyType': 'MapKeyTypeName',
-                     'GenericMapValueType': 'MapValueTypeName'}
+                     'GenericMapValueType': 'MapValueTypeName',
+                     'genericHash': 'MapKeyHashFunc'}
 
     state = 'searching'
     template_name = ''

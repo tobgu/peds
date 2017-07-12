@@ -1,16 +1,9 @@
 package templates_template
 
-import (
-	"fmt"
-	"hash/fnv"
-)
+// This file contains function definitions needed for the template package to
+// be compilable but that should be replaced by other function calls in the templates
 
-func xhash(s string) uint64 {
-	h := fnv.New64a()
-	h.Write([]byte(s))
-	return h.Sum64()
-}
 
-func xgenericHashFunc(x interface{}) uint64 {
-	return hash(fmt.Sprintf("%v", x))
+func genericHash(x interface{}) uint32 {
+	return interfaceHash(x)
 }

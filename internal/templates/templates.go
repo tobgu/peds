@@ -5,7 +5,9 @@ const CommonTemplate string = `
 // TODO: Need a way to specify imports required by different pieces of the code
 import (
 	"fmt"
-	"hash/fnv"
+	"encoding/binary"
+	"hash/crc32"
+	"math"
 )
 
 const shiftSize = 5
@@ -46,14 +48,90 @@ func assertSliceOk(start, stop, len int) {
 	}
 }
 
-func hash(s string) uint64 {
-	h := fnv.New64a()
-	h.Write([]byte(s))
-	return h.Sum64()
+//////////////////////////
+//// Hash functions //////
+//////////////////////////
+
+func hash(x []byte) uint32 {
+	return crc32.ChecksumIEEE(x)
 }
 
-func genericHashFunc(x interface{}) uint64 {
-	return hash(fmt.Sprintf("%v", x))
+func interfaceHash(x interface{}) uint32 {
+	return hash([]byte(fmt.Sprintf("%v", x)))
+}
+
+func byteHash(x byte) uint32 {
+	return hash([]byte{x})
+}
+
+func uint8Hash(x uint8) uint32 {
+	return byteHash(byte(x))
+}
+
+func int8Hash(x int8) uint32 {
+	return uint8Hash(uint8(x))
+}
+
+func uint16Hash(x uint16) uint32 {
+	bX := make([]byte, 2)
+	binary.LittleEndian.PutUint16(bX, x)
+	return hash(bX)
+}
+
+func int16Hash(x int16) uint32 {
+	return uint16Hash(uint16(x))
+}
+
+func uint32Hash(x uint32) uint32 {
+	bX := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bX, x)
+	return hash(bX)
+}
+
+func int32Hash(x int32) uint32 {
+	return uint32Hash(uint32(x))
+}
+
+func uint64Hash(x uint64) uint32 {
+	bX := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bX, x)
+	return hash(bX)
+}
+
+func int64Hash(x int64) uint32 {
+	return uint64Hash(uint64(x))
+}
+
+func intHash(x int) uint32 {
+	return int64Hash(int64(x))
+}
+
+func uintHash(x uint) uint32 {
+	return uint64Hash(uint64(x))
+}
+
+func boolHash(x bool) uint32 {
+	if x {
+		return 1
+	}
+
+	return 0
+}
+
+func runeHash(x rune) uint32 {
+	return int32Hash(int32(x))
+}
+
+func stringHash(x string) uint32 {
+	return hash([]byte(x))
+}
+
+func float64Hash(x float64) uint32 {
+	return uint64Hash(math.Float64bits(x))
+}
+
+func float32Hash(x float32) uint32 {
+	return uint32Hash(math.Float32bits(x))
 }
 
 `
@@ -249,7 +327,7 @@ type {{.MapTypeName}} struct {
 /////////////////////////
 
 func (m *{{.MapTypeName}}) pos(key {{.MapKeyTypeName}}) int {
-	return int(genericHashFunc(key) % uint64(m.backingVector.Len()))
+	return int(uint64({{.MapKeyHashFunc}}(key)) % uint64(m.backingVector.Len()))
 }
 
 func (m *{{.MapTypeName}}) load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeName}}, ok bool) {
@@ -341,7 +419,7 @@ func New{{.MapTypeName}}(items ...{{.MapItemTypeName}}) *{{.MapTypeName}} {
 	input := make([]{{.MapItemTypeName}}Bucket, vectorSize)
 	length := 0
 	for _, item := range items {
-		ix := int(genericHashFunc(item) % uint64(vectorSize))
+		ix := int(uint64({{.MapKeyHashFunc}}(item.Key)) % uint64(vectorSize))
 		bucket := input[ix]
 		if bucket != nil {
 			// Hash collision, merge with existing bucket

@@ -3,6 +3,8 @@ package peds_testing
 import (
 	"fmt"
 	"testing"
+	"encoding/binary"
+	"hash/crc32"
 )
 
 func TestLenOfNewMap(t *testing.T) {
@@ -139,6 +141,16 @@ func BenchmarkInsertNativeMap(b *testing.B) {
 	fmt.Println("Total length", length)
 }
 
+/*
+Results with generic/interface hash function:
+BenchmarkAccessMap-2         	    5000	    296257 ns/op
+BenchmarkAccessNativeMap-2   	   50000	     29424 ns/op
+
+Results with specialized crc32 hash function (~3x overall improvement):
+BenchmarkAccessMap-2         	   20000	     95464 ns/op
+BenchmarkAccessNativeMap-2   	   50000	     30085 ns/op
+*/
+
 func BenchmarkAccessMap(b *testing.B) {
 	// 11 - 12 times slower than native map
 	// ~85% of time spent in generic pos function
@@ -169,6 +181,60 @@ func BenchmarkAccessNativeMap(b *testing.B) {
 	}
 }
 
+func BenchmarkInterfaceHash(b *testing.B) {
+	b.ReportAllocs()
+	result := uint32(0)
+	for i := 0; i < b.N; i++ {
+		result += interfaceHash(i)
+	}
+
+	fmt.Println(result)
+}
+
+func intHashFunc(x int) uint32 {
+	// Adler32 is the quickest by far of the hash functions provided in the stdlib but its distribution is bad.
+	// CRC32 has a fairly good distribution and is fairly quick.
+	bX := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bX, uint64(x))
+	return crc32.ChecksumIEEE(bX)
+}
+
+func BenchmarkIntHash(b *testing.B) {
+	b.ReportAllocs()
+	result := uint32(0)
+	for i := 0; i < b.N; i++ {
+		result += intHashFunc(i)
+	}
+
+	fmt.Println(result)
+}
+
+/*
+$ go test -bench Hash -run=^$
+BenchmarkGenericHash-2   	12173717644275345446
+ 5000000	       302 ns/op	      32 B/op	       4 allocs/op
+BenchmarkIntHash-2       	10376819065122364326
+20000000	        63.8 ns/op	      16 B/op	       2 allocs/op
+
+Reusing byte buffer between hashes:
+30000000	        39.8 ns/op	       8 B/op	       1 allocs/op
+PASS
+
+Using crc32.ChecksumIEEE
+50000000	        34.3 ns/op	       0 B/op	       0 allocs/op
+PASS
+
+Using adler32.Checksum, very quick indeed but seems to have bad collision characteristics,
+go with crc32 for now.
+100000000	        18.8 ns/op	       0 B/op	       0 allocs/op
+PASS
+
+We may want to revisit this later. Using SipHash as done in Python,
+Rust, etc may be a good longer term solution for a cryptographically saner/safer solution.
+See https://github.com/dchest/siphash.
+*/
+
+
 /* TODO:- Constructor from native map?
         - Improve parsing of specs to allow white spaces etc.
         - Dynamic sizing of backing vector depending on size of the map (which thresholds?)
@@ -176,5 +242,5 @@ func BenchmarkAccessNativeMap(b *testing.B) {
         - ToNativeMap() function (and ToNativeSlice for vectors?)
         - Custom imports?
         - Non comparable types cannot be used as keys (should be detected during compilation)
-   	    - Custom hash function for performance.
+   	    - Test custom struct as key
 */
