@@ -4,8 +4,8 @@ package templates
 const CommonTemplate string = `
 // TODO: Need a way to specify imports required by different pieces of the code
 import (
-	"fmt"
 	"encoding/binary"
+	"fmt"
 	"hash/crc32"
 	"math"
 )
@@ -47,6 +47,9 @@ func assertSliceOk(start, stop, len int) {
 		panic(fmt.Sprintf("Slice bounds out of range, start=%d, stop=%d, len=%d", start, stop, len))
 	}
 }
+
+const upperMapLoadFactor float64 = 8.0
+const lowerMapLoadFactor float64 = 2.0
 
 //////////////////////////
 //// Hash functions //////
@@ -190,6 +193,40 @@ func (v *{{.MapItemTypeName}}BucketVector) tailOffset() uint {
 	return ((v.len - 1) >> shiftSize) << shiftSize
 }
 
+/*
+(*IntStringMapItemBucketVector).Set
+    131401     410565 (flat, cum) 58.11% of Total
+         .          .   1017:	if i < 0 || uint(i) >= v.len {
+         .          .   1018:		panic("Index out of bounds")
+         .          .   1019:	}
+         .          .   1020:
+         .          .   1021:	if uint(i) >= v.tailOffset() {
+     30805      30805   1022:		newTail := make([]IntStringMapItemBucket, len(v.tail))
+         .          .   1023:		copy(newTail, v.tail)
+         .          .   1024:		newTail[i&shiftBitMask] = item
+     30805      30805   1025:		return &IntStringMapItemBucketVector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
+         .          .   1026:	}
+         .          .   1027:
+     69791     348955   1028:	return &IntStringMapItemBucketVector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
+         .          .   1029:}
+
+
+        .          .   1031:func (v *IntStringMapItemBucketVector) doAssoc(level uint, node commonNode, i uint, item IntStringMapItemBucket) commonNode {
+         .          .   1032:	if level == 0 {
+     69791      69791   1033:		ret := make([]IntStringMapItemBucket, nodeSize)
+         .          .   1034:		copy(ret, node.([]IntStringMapItemBucket))
+         .          .   1035:		ret[i&shiftBitMask] = item
+     69791      69791   1036:		return ret
+         .          .   1037:	}
+         .          .   1038:
+     69791      69791   1039:	ret := make([]commonNode, nodeSize)
+         .          .   1040:	copy(ret, node.([]commonNode))
+         .          .   1041:	subidx := (i >> level) & shiftBitMask
+         .     139582   1042:	ret[subidx] = v.doAssoc(level-shiftSize, ret[subidx], i, item)
+     69791      69791   1043:	return ret
+         .          .   1044:}
+
+*/
 func (v *{{.MapItemTypeName}}BucketVector) Set(i int, item {{.MapItemTypeName}}Bucket) *{{.MapItemTypeName}}BucketVector {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
@@ -345,6 +382,20 @@ func (m *{{.MapTypeName}}) load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeN
 }
 
 func (m *{{.MapTypeName}}) store(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) *{{.MapTypeName}} {
+	// Grow backing vector if load factor is too high
+	if m.Len() >= m.backingVector.Len()*int(upperMapLoadFactor) {
+		buckets := newPrivate{{.MapItemTypeName}}Buckets(m.Len() + 1)
+		it := m.backingVector.Iter()
+		for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
+			for _, item := range bucket {
+				buckets.AddItem(item)
+			}
+		}
+
+		buckets.AddItem({{.MapItemTypeName}}{Key: key, Value: value})
+		return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(buckets.buckets...), len: buckets.length}
+	}
+
 	pos := m.pos(key)
 	bucket := m.backingVector.Get(pos)
 	if bucket != nil {
@@ -371,6 +422,7 @@ func (m *{{.MapTypeName}}) store(key {{.MapKeyTypeName}}, value {{.MapValueTypeN
 }
 
 func (m *{{.MapTypeName}}) delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
+	// TODO: Shrink map if needed
 	pos := m.pos(key)
 	bucket := m.backingVector.Get(pos)
 	if bucket != nil {
@@ -407,6 +459,39 @@ func (m *{{.MapTypeName}}) prange(f func(key {{.MapKeyTypeName}}, value {{.MapVa
 	}
 }
 
+// Helper type used during map creation and reallocation
+type private{{.MapItemTypeName}}Buckets struct {
+	buckets []{{.MapItemTypeName}}Bucket
+	length  int
+}
+
+func newPrivate{{.MapItemTypeName}}Buckets(itemCount int) *private{{.MapItemTypeName}}Buckets {
+	size := int(float64(itemCount)/lowerMapLoadFactor) + 1
+	buckets := make([]{{.MapItemTypeName}}Bucket, size)
+	return &private{{.MapItemTypeName}}Buckets{buckets: buckets}
+}
+
+func (b *private{{.MapItemTypeName}}Buckets) AddItem(item {{.MapItemTypeName}}) {
+	ix := int(uint64({{.MapKeyHashFunc}}(item.Key)) % uint64(len(b.buckets)))
+	bucket := b.buckets[ix]
+	if bucket != nil {
+		// Hash collision, merge with existing bucket
+		for keyIx, bItem := range bucket {
+			if item.Key == bItem.Key {
+				bucket[keyIx] = item
+				return
+			}
+		}
+
+		b.buckets[ix] = append(bucket, {{.MapItemTypeName}}{Key: item.Key, Value: item.Value})
+		b.length++
+	} else {
+		bucket := make({{.MapItemTypeName}}Bucket, 0, int(math.Max(lowerMapLoadFactor, 1.0)))
+		b.buckets[ix] = append(bucket, item)
+		b.length++
+	}
+}
+
 `
 const PublicMapTemplate string = `
 ////////////////////////
@@ -414,35 +499,12 @@ const PublicMapTemplate string = `
 ////////////////////////
 
 func New{{.MapTypeName}}(items ...{{.MapItemTypeName}}) *{{.MapTypeName}} {
-	// TODO: Vary size depending on input size
-	vectorSize := nodeSize
-	input := make([]{{.MapItemTypeName}}Bucket, vectorSize)
-	length := 0
+	buckets := newPrivate{{.MapItemTypeName}}Buckets(len(items))
 	for _, item := range items {
-		ix := int(uint64({{.MapKeyHashFunc}}(item.Key)) % uint64(vectorSize))
-		bucket := input[ix]
-		if bucket != nil {
-			// Hash collision, merge with existing bucket
-			found := false
-			for keyIx, bItem := range bucket {
-				if item.Key == bItem.Key {
-					bucket[keyIx] = item
-					found = true
-					break
-				}
-			}
-
-			if !found {
-				input[ix] = append(bucket, {{.MapItemTypeName}}{Key: item.Key, Value: item.Value})
-				length++
-			}
-		} else {
-			input[ix] = {{.MapItemTypeName}}Bucket{item}
-			length++
-		}
+		buckets.AddItem(item)
 	}
 
-	return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(input...), len: length}
+	return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(buckets.buckets...), len: buckets.length}
 }
 
 func (m *{{.MapTypeName}}) Len() int {
