@@ -124,9 +124,6 @@ func TestLargeInsertAndLookup(t *testing.T) {
 //////////////////
 
 func BenchmarkInsertMap(b *testing.B) {
-	// 5 - 6 times slower than native map
-	// ~50% in store, ofBenchmarkInsertMap which ~14% in hash and ~20% in vector.Set()
-	// ~50 in runtime._ExternalCode (memory allocation?)
 	length := 0
 	for i := 0; i < b.N; i++ {
 		m := NewIntStringMap()
@@ -154,19 +151,7 @@ func BenchmarkInsertNativeMap(b *testing.B) {
 	fmt.Println("Total length", length)
 }
 
-/*
-Results with generic/interface hash function:
-BenchmarkAccessMap-2         	    5000	    296257 ns/op
-BenchmarkAccessNativeMap-2   	   50000	     29424 ns/op
-
-Results with specialized crc32 hash function (~3x overall improvement):
-BenchmarkAccessMap-2         	   20000	     95464 ns/op
-BenchmarkAccessNativeMap-2   	   50000	     30085 ns/op
-*/
-
 func BenchmarkAccessMap(b *testing.B) {
-	// 11 - 12 times slower than native map
-	// ~85% of time spent in generic pos function
 	m := NewIntStringMap()
 	for j := 0; j < 1000; j++ {
 		m = m.Store(j, "a")
@@ -223,24 +208,6 @@ func BenchmarkIntHash(b *testing.B) {
 }
 
 func BenchmarkLargeInsertAndLookup(b *testing.B) {
-	/*
-		Experiment with fixed size vector, the validity of this experiment is questionable...
-		320  	      1	1592123509 ns/op	542679008 B/op	 1071516 allocs/op
-		3200          2	 564513986 ns/op	240819736 B/op	 1296435 allocs/op
-	    6400          2	 533717864 ns/op	221782588 B/op	 1299555 allocs/op
-	    16000         2	 591304710 ns/op	211273412 B/op	 1303406 allocs/op
-		32000:        2	 652429227 ns/op	208832108 B/op	 1307847 allocs/op
-		320000:       2	 710530090 ns/op	281911676 B/op	 1597980 allocs/op
-
-		Dynamic
-		1 - 2:        2	 821062415 ns/op	254996996 B/op	 1643698 allocs/op
-		2 - 4:        2	 673806304 ns/op	217694020 B/op	 1425024 allocs/op
-		2 - 8:        2	 582710461 ns/op	215104792 B/op	 1352542 allocs/op
-		4 - 8:        2	 630426666 ns/op	220647548 B/op	 1386341 allocs/op
-		2 - 16:       2	 609139537 ns/op	229649368 B/op	 1379827 allocs/op
-		20 - 40:      1	1234014496 ns/op	260392080 B/op	 1250811 allocs/op
-	*/
-
 	b.ReportAllocs()
 	total := 0
 	for i := 0; i < b.N; i++ {
@@ -261,9 +228,6 @@ func BenchmarkLargeInsertAndLookup(b *testing.B) {
 }
 
 func BenchmarkLargeCreateInsertAndLookup(b *testing.B) {
-	/*
-	 10	 134831379 ns/op	14035978 B/op	  505355 allocs/op
-	*/
 	b.ReportAllocs()
 	total := 0
 	for i := 0; i < b.N; i++ {
@@ -285,31 +249,6 @@ func BenchmarkLargeCreateInsertAndLookup(b *testing.B) {
 }
 
 /*
-$ go test -bench Hash -run=^$
-BenchmarkGenericHash-2   	12173717644275345446
- 5000000	       302 ns/op	      32 B/op	       4 allocs/op
-BenchmarkIntHash-2       	10376819065122364326
-20000000	        63.8 ns/op	      16 B/op	       2 allocs/op
-
-Reusing byte buffer between hashes:
-30000000	        39.8 ns/op	       8 B/op	       1 allocs/op
-PASS
-
-Using crc32.ChecksumIEEE
-50000000	        34.3 ns/op	       0 B/op	       0 allocs/op
-PASS
-
-Using adler32.Checksum, very quick indeed but seems to have bad collision characteristics,
-go with crc32 for now.
-100000000	        18.8 ns/op	       0 B/op	       0 allocs/op
-PASS
-
-We may want to revisit this later. Using SipHash as done in Python,
-Rust, etc may be a good longer term solution for a cryptographically saner/safer solution.
-See https://github.com/dchest/siphash.
-*/
-
-/*
 Profiling commands:
 
 # Run specific benchmark
@@ -323,13 +262,13 @@ go tool pprof --alloc_objects tests.test insert.mprof
 
 */
 
-/* TODO:- Constructor from native map?
-        - Improve parsing of specs to allow white spaces etc.
-        - Dynamic sizing of backing vector depending on size of the map (which thresholds?)
-        - More tests, store and load from larger structures
-        - ToNativeMap() function (and ToNativeSlice for vectors?)
-        - Custom imports?
-        - Non comparable types cannot be used as keys (should be detected during compilation)
-   	    - Test custom struct as key
-   	    - Nicer interface for the vector iterator, see Scanner for an example
+/* TODO: - Constructor from native map?
+         - Improve parsing of specs to allow white spaces etc.
+         - More tests, store and load from larger structures
+         - ToNativeMap() function (and ToNativeSlice for vectors?)
+         - Custom imports?
+         - Non comparable types cannot be used as keys (should be detected during compilation)
+   	     - Test custom struct as key
+   	     - Nicer interface for the vector iterator, see Scanner for an example
+   	     - Make it possible to explicitly state which hash function to use
 */

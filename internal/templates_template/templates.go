@@ -768,60 +768,7 @@ func (m *GenericMapType) Range(f func(key GenericMapKeyType, value GenericMapVal
 	m.prange(f)
 }
 
-//template:otherStuff
-
-//////////////////////
-/// Hash functions ///
-//////////////////////
-
-/*
-Types for which special hash functions could be implemented:
-
-uint8       the set of all unsigned  8-bit integers (0 to 255)
-uint16      the set of all unsigned 16-bit integers (0 to 65535)
-uint32      the set of all unsigned 32-bit integers (0 to 4294967295)
-uint64      the set of all unsigned 64-bit integers (0 to 18446744073709551615)
-
-int8        the set of all signed  8-bit integers (-128 to 127)
-int16       the set of all signed 16-bit integers (-32768 to 32767)
-int32       the set of all signed 32-bit integers (-2147483648 to 2147483647)
-int64       the set of all signed 64-bit integers (-9223372036854775808 to 9223372036854775807)
-
-float32     the set of all IEEE-754 32-bit floating-point numbers
-float64     the set of all IEEE-754 64-bit floating-point numbers
-
-complex64   the set of all complex numbers with float32 real and imaginary parts
-complex128  the set of all complex numbers with float64 real and imaginary parts
-
-byte        alias for uint8
-rune        alias for int32
-
-bool
-
-string
-
-Everything else will use the generic hash based on string representation for now.
-
-General idea:
-
-If the generic hash based on string representation currently used proves to be a bottleneck
-implement custom hashes for the above.
-
-Use fnv hash function to start with. If still bottle neck test something like murmur3.
-
-Use binary.LittleEndian.PutUint32 and friends to convert integers to bytes.
-
-Use math.Float64/32bits to convert float to uints.
-
-Equivalent types:
-We may want to denote equivalent types (eg. redefinitions of any of the above types) to make
-it possible to use the faster hash functions for those as well. Perhaps there is some kind
-of introspection possible that would make this possible without user input?
-
-*/
-
-// Check during generation that key is comparable, this can be done using reflection
-// Generate hashing code during generation based on key type (should be possible to get this info from AST or similar)
+//template:commentsNotWantedInGeneratedCode
 
 // peds -maps "FooMap<int, string>;BarMap<int16, int32>"
 //      -sets "FooSet<mypackage.MyType>"
@@ -829,13 +776,3 @@ of introspection possible that would make this possible without user input?
 //      -imports "io;github.com/my/mypackage"
 //      -package mycontainers
 //      -file mycontainers_gen.go
-
-// Built in types can more or less be used as is, custom hash function needed depending on type. Third party types
-// or types in other packages need to be inspected to create v custom hash function for them (only public fields
-// will be accessible I guess). Types in the same package also need to be inspected. This is only true for keys.
-// Values can be whatever type.
-
-// As v first step only support built in types (and any redeclarations of them). Composite/custom types would
-// get their hash through:
-//   key := fmt.Sprintf("%#v", value)
-// Potentially printing v warning that this is supported but likely not very fast.
