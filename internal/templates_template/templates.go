@@ -748,6 +748,15 @@ func NewGenericMapType(items ...GenericMapItem) *GenericMapType {
 	return &GenericMapType{backingVector: emptyGenericMapItemBucketVector.Append(buckets.buckets...), len: buckets.length}
 }
 
+func NewGenericMapTypeFromNativeMap(m map[GenericMapKeyType]GenericMapValueType) *GenericMapType {
+	buckets := newPrivateGenericMapItemBuckets(len(m))
+	for key, value := range m {
+		buckets.AddItem(GenericMapItem{Key: key, Value: value})
+	}
+
+	return &GenericMapType{backingVector: emptyGenericMapItemBucketVector.Append(buckets.buckets...), len: buckets.length}
+}
+
 func (m *GenericMapType) Len() int {
 	return int(m.len)
 }
@@ -766,6 +775,16 @@ func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
 
 func (m *GenericMapType) Range(f func(key GenericMapKeyType, value GenericMapValueType) bool) {
 	m.prange(f)
+}
+
+func (m *GenericMapType) ToNativeMap() map[GenericMapKeyType]GenericMapValueType {
+	result := make(map[GenericMapKeyType]GenericMapValueType)
+	m.Range(func(key GenericMapKeyType, value GenericMapValueType) bool {
+		result[key] = value
+		return true
+	})
+
+	return result
 }
 
 //template:commentsNotWantedInGeneratedCode

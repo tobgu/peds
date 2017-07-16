@@ -119,6 +119,19 @@ func TestLargeInsertAndLookup(t *testing.T) {
 	}
 }
 
+func TestFromToNativeMap(t *testing.T) {
+	input := map[string]int{
+		"a": 1,
+		"b": 2,
+		"c": 3}
+	m := NewStringIntMapFromNativeMap(input)
+	output := m.ToNativeMap()
+	assertEqual(t, len(input), len(output))
+	for key, value := range input {
+		assertEqual(t, value, output[key])
+	}
+}
+
 //////////////////
 /// Benchmarks ///
 //////////////////
@@ -262,13 +275,11 @@ go tool pprof --alloc_objects tests.test insert.mprof
 
 */
 
-/* TODO: - Constructor from native map?
-         - Improve parsing of specs to allow white spaces etc.
-         - More tests, store and load from larger structures
-         - ToNativeMap() function (and ToNativeSlice for vectors?)
+/* TODO: - Improve parsing of specs to allow white spaces etc.
+         - More tests, invalid specs
          - Custom imports?
          - Non comparable types cannot be used as keys (should be detected during compilation)
    	     - Test custom struct as key
    	     - Nicer interface for the vector iterator, see Scanner for an example
-   	     - Make it possible to explicitly state which hash function to use
+   	     - Make it possible to explicitly state which hash function to use and/or which the actual underlying type is
 */

@@ -507,6 +507,15 @@ func New{{.MapTypeName}}(items ...{{.MapItemTypeName}}) *{{.MapTypeName}} {
 	return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(buckets.buckets...), len: buckets.length}
 }
 
+func New{{.MapTypeName}}FromNativeMap(m map[{{.MapKeyTypeName}}]{{.MapValueTypeName}}) *{{.MapTypeName}} {
+	buckets := newPrivate{{.MapItemTypeName}}Buckets(len(m))
+	for key, value := range m {
+		buckets.AddItem({{.MapItemTypeName}}{Key: key, Value: value})
+	}
+
+	return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(buckets.buckets...), len: buckets.length}
+}
+
 func (m *{{.MapTypeName}}) Len() int {
 	return int(m.len)
 }
@@ -525,6 +534,16 @@ func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
 
 func (m *{{.MapTypeName}}) Range(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {
 	m.prange(f)
+}
+
+func (m *{{.MapTypeName}}) ToNativeMap() map[{{.MapKeyTypeName}}]{{.MapValueTypeName}} {
+	result := make(map[{{.MapKeyTypeName}}]{{.MapValueTypeName}})
+	m.Range(func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool {
+		result[key] = value
+		return true
+	})
+
+	return result
 }
 
 `
