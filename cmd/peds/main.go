@@ -56,7 +56,7 @@ func main() {
 	flagset := flag.NewFlagSet("server", flag.ExitOnError)
 	var (
 		maps = flagset.String("maps", "", "Map1<int,string>;Map2<float,int>")
-		//		sets = flagset.String("sets", "", "Set1<int>")
+		sets = flagset.String("sets", "", "Set1<int>")
 		//		imports = flagset.String("imports", "", "import1;import2")
 
 		vectors = flagset.String("vectors", "", "Vec1<int>")
@@ -106,6 +106,24 @@ func main() {
 			err := renderTemplates([]templateSpec{
 				{name: "private_map_template", template: templates.PrivateMapTemplate},
 				{name: "public_map_template", template: templates.PublicMapTemplate}},
+				spec, &buf)
+
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+
+	if *sets != "" {
+		setSpecs, err := parseSetSpecs(*sets)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for _, spec := range setSpecs {
+			err := renderTemplates([]templateSpec{
+				{name: "private_map_template", template: templates.PrivateMapTemplate},
+				{name: "set_template", template: templates.SetTemplate}},
 				spec, &buf)
 
 			if err != nil {
@@ -182,6 +200,32 @@ func parseMapSpecs(mapDescriptor string) ([]mapSpec, error) {
 		keyTypeName := m[2]
 		result = append(result,
 			mapSpec{MapTypeName: m[1], MapItemTypeName: m[1] + "Item", MapKeyTypeName: keyTypeName, MapValueTypeName: m[3], MapKeyHashFunc: hashFunc(keyTypeName)})
+	}
+
+	return result, nil
+}
+
+type setSpec struct {
+	mapSpec
+	SetTypeName string
+}
+
+func parseSetSpecs(setDescriptor string) ([]setSpec, error) {
+	result := make([]setSpec, 0)
+	descriptors := strings.Split(setDescriptor, ";")
+	r := regexp.MustCompile(`([A-Za-z0-9]+)<([A-Za-z0-9.]+)>`)
+	for _, d := range descriptors {
+		m := r.FindStringSubmatch(strings.TrimSpace(d))
+		if len(m) != 3 {
+			return nil, fmt.Errorf("Invalid set specification: %s", d)
+		}
+
+		keyTypeName := m[2]
+		mapName := "private" + m[1] + "Map"
+		result = append(result,
+			setSpec{
+				mapSpec:     mapSpec{MapTypeName: mapName, MapItemTypeName: mapName + "Item", MapKeyTypeName: keyTypeName, MapValueTypeName: "struct{}", MapKeyHashFunc: hashFunc(keyTypeName)},
+				SetTypeName: m[1]})
 	}
 
 	return result, nil

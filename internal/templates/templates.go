@@ -154,6 +154,7 @@ type {{.MapItemTypeName}}BucketVector struct {
 	shift uint
 }
 
+// TODO: Perhaps make this private?
 type {{.MapItemTypeName}} struct {
 	Key   {{.MapKeyTypeName}}
 	Value {{.MapValueTypeName}}
@@ -193,40 +194,6 @@ func (v *{{.MapItemTypeName}}BucketVector) tailOffset() uint {
 	return ((v.len - 1) >> shiftSize) << shiftSize
 }
 
-/*
-(*IntStringMapItemBucketVector).Set
-    131401     410565 (flat, cum) 58.11% of Total
-         .          .   1017:	if i < 0 || uint(i) >= v.len {
-         .          .   1018:		panic("Index out of bounds")
-         .          .   1019:	}
-         .          .   1020:
-         .          .   1021:	if uint(i) >= v.tailOffset() {
-     30805      30805   1022:		newTail := make([]IntStringMapItemBucket, len(v.tail))
-         .          .   1023:		copy(newTail, v.tail)
-         .          .   1024:		newTail[i&shiftBitMask] = item
-     30805      30805   1025:		return &IntStringMapItemBucketVector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
-         .          .   1026:	}
-         .          .   1027:
-     69791     348955   1028:	return &IntStringMapItemBucketVector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
-         .          .   1029:}
-
-
-        .          .   1031:func (v *IntStringMapItemBucketVector) doAssoc(level uint, node commonNode, i uint, item IntStringMapItemBucket) commonNode {
-         .          .   1032:	if level == 0 {
-     69791      69791   1033:		ret := make([]IntStringMapItemBucket, nodeSize)
-         .          .   1034:		copy(ret, node.([]IntStringMapItemBucket))
-         .          .   1035:		ret[i&shiftBitMask] = item
-     69791      69791   1036:		return ret
-         .          .   1037:	}
-         .          .   1038:
-     69791      69791   1039:	ret := make([]commonNode, nodeSize)
-         .          .   1040:	copy(ret, node.([]commonNode))
-         .          .   1041:	subidx := (i >> level) & shiftBitMask
-         .     139582   1042:	ret[subidx] = v.doAssoc(level-shiftSize, ret[subidx], i, item)
-     69791      69791   1043:	return ret
-         .          .   1044:}
-
-*/
 func (v *{{.MapItemTypeName}}BucketVector) Set(i int, item {{.MapItemTypeName}}Bucket) *{{.MapItemTypeName}}BucketVector {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
@@ -367,7 +334,54 @@ func (m *{{.MapTypeName}}) pos(key {{.MapKeyTypeName}}) int {
 	return int(uint64({{.MapKeyHashFunc}}(key)) % uint64(m.backingVector.Len()))
 }
 
-func (m *{{.MapTypeName}}) load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeName}}, ok bool) {
+
+// Helper type used during map creation and reallocation
+type private{{.MapItemTypeName}}Buckets struct {
+	buckets []{{.MapItemTypeName}}Bucket
+	length  int
+}
+
+func newPrivate{{.MapItemTypeName}}Buckets(itemCount int) *private{{.MapItemTypeName}}Buckets {
+	size := int(float64(itemCount)/lowerMapLoadFactor) + 1
+	buckets := make([]{{.MapItemTypeName}}Bucket, size)
+	return &private{{.MapItemTypeName}}Buckets{buckets: buckets}
+}
+
+func (b *private{{.MapItemTypeName}}Buckets) AddItem(item {{.MapItemTypeName}}) {
+	ix := int(uint64({{.MapKeyHashFunc}}(item.Key)) % uint64(len(b.buckets)))
+	bucket := b.buckets[ix]
+	if bucket != nil {
+		// Hash collision, merge with existing bucket
+		for keyIx, bItem := range bucket {
+			if item.Key == bItem.Key {
+				bucket[keyIx] = item
+				return
+			}
+		}
+
+		b.buckets[ix] = append(bucket, {{.MapItemTypeName}}{Key: item.Key, Value: item.Value})
+		b.length++
+	} else {
+		bucket := make({{.MapItemTypeName}}Bucket, 0, int(math.Max(lowerMapLoadFactor, 1.0)))
+		b.buckets[ix] = append(bucket, item)
+		b.length++
+	}
+}
+
+func new{{.MapTypeName}}(items []{{.MapItemTypeName}}) *{{.MapTypeName}} {
+	buckets := newPrivate{{.MapItemTypeName}}Buckets(len(items))
+	for _, item := range items {
+		buckets.AddItem(item)
+	}
+
+	return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(buckets.buckets...), len: buckets.length}
+}
+
+func (m *{{.MapTypeName}}) Len() int {
+	return int(m.len)
+}
+
+func (m *{{.MapTypeName}}) Load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeName}}, ok bool) {
 	bucket := m.backingVector.Get(m.pos(key))
 	if bucket != nil {
 		for _, item := range bucket {
@@ -381,7 +395,7 @@ func (m *{{.MapTypeName}}) load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeN
 	return zeroValue, false
 }
 
-func (m *{{.MapTypeName}}) store(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) *{{.MapTypeName}} {
+func (m *{{.MapTypeName}}) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) *{{.MapTypeName}} {
 	// Grow backing vector if load factor is too high
 	if m.Len() >= m.backingVector.Len()*int(upperMapLoadFactor) {
 		buckets := newPrivate{{.MapItemTypeName}}Buckets(m.Len() + 1)
@@ -421,7 +435,7 @@ func (m *{{.MapTypeName}}) store(key {{.MapKeyTypeName}}, value {{.MapValueTypeN
 	return &{{.MapTypeName}}{backingVector: m.backingVector.Set(pos, newBucket), len: m.len + 1}
 }
 
-func (m *{{.MapTypeName}}) delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
+func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
 	// TODO: Shrink map if needed
 	pos := m.pos(key)
 	bucket := m.backingVector.Get(pos)
@@ -448,7 +462,7 @@ func (m *{{.MapTypeName}}) delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
 	return m
 }
 
-func (m *{{.MapTypeName}}) prange(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {
+func (m *{{.MapTypeName}}) Range(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {
 	it := m.backingVector.Iter()
 	for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
 		for _, item := range bucket {
@@ -457,83 +471,6 @@ func (m *{{.MapTypeName}}) prange(f func(key {{.MapKeyTypeName}}, value {{.MapVa
 			}
 		}
 	}
-}
-
-// Helper type used during map creation and reallocation
-type private{{.MapItemTypeName}}Buckets struct {
-	buckets []{{.MapItemTypeName}}Bucket
-	length  int
-}
-
-func newPrivate{{.MapItemTypeName}}Buckets(itemCount int) *private{{.MapItemTypeName}}Buckets {
-	size := int(float64(itemCount)/lowerMapLoadFactor) + 1
-	buckets := make([]{{.MapItemTypeName}}Bucket, size)
-	return &private{{.MapItemTypeName}}Buckets{buckets: buckets}
-}
-
-func (b *private{{.MapItemTypeName}}Buckets) AddItem(item {{.MapItemTypeName}}) {
-	ix := int(uint64({{.MapKeyHashFunc}}(item.Key)) % uint64(len(b.buckets)))
-	bucket := b.buckets[ix]
-	if bucket != nil {
-		// Hash collision, merge with existing bucket
-		for keyIx, bItem := range bucket {
-			if item.Key == bItem.Key {
-				bucket[keyIx] = item
-				return
-			}
-		}
-
-		b.buckets[ix] = append(bucket, {{.MapItemTypeName}}{Key: item.Key, Value: item.Value})
-		b.length++
-	} else {
-		bucket := make({{.MapItemTypeName}}Bucket, 0, int(math.Max(lowerMapLoadFactor, 1.0)))
-		b.buckets[ix] = append(bucket, item)
-		b.length++
-	}
-}
-
-`
-const PublicMapTemplate string = `
-////////////////////////
-/// Public functions ///
-////////////////////////
-
-func New{{.MapTypeName}}(items ...{{.MapItemTypeName}}) *{{.MapTypeName}} {
-	buckets := newPrivate{{.MapItemTypeName}}Buckets(len(items))
-	for _, item := range items {
-		buckets.AddItem(item)
-	}
-
-	return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(buckets.buckets...), len: buckets.length}
-}
-
-func New{{.MapTypeName}}FromNativeMap(m map[{{.MapKeyTypeName}}]{{.MapValueTypeName}}) *{{.MapTypeName}} {
-	buckets := newPrivate{{.MapItemTypeName}}Buckets(len(m))
-	for key, value := range m {
-		buckets.AddItem({{.MapItemTypeName}}{Key: key, Value: value})
-	}
-
-	return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(buckets.buckets...), len: buckets.length}
-}
-
-func (m *{{.MapTypeName}}) Len() int {
-	return int(m.len)
-}
-
-func (m *{{.MapTypeName}}) Load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeName}}, ok bool) {
-	return m.load(key)
-}
-
-func (m *{{.MapTypeName}}) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) *{{.MapTypeName}} {
-	return m.store(key, value)
-}
-
-func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
-	return m.delete(key)
-}
-
-func (m *{{.MapTypeName}}) Range(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {
-	m.prange(f)
 }
 
 func (m *{{.MapTypeName}}) ToNativeMap() map[{{.MapKeyTypeName}}]{{.MapValueTypeName}} {
@@ -545,6 +482,75 @@ func (m *{{.MapTypeName}}) ToNativeMap() map[{{.MapKeyTypeName}}]{{.MapValueType
 
 	return result
 }
+
+`
+const PublicMapTemplate string = `
+////////////////////////
+/// Public functions ///
+////////////////////////
+
+func New{{.MapTypeName}}(items ...{{.MapItemTypeName}}) *{{.MapTypeName}} {
+	return new{{.MapTypeName}}(items)
+}
+
+func New{{.MapTypeName}}FromNativeMap(m map[{{.MapKeyTypeName}}]{{.MapValueTypeName}}) *{{.MapTypeName}} {
+	buckets := newPrivate{{.MapItemTypeName}}Buckets(len(m))
+	for key, value := range m {
+		buckets.AddItem({{.MapItemTypeName}}{Key: key, Value: value})
+	}
+
+	return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(buckets.buckets...), len: buckets.length}
+}
+
+`
+const SetTemplate string = `
+type {{.SetTypeName}} struct {
+	backingMap *{{.MapTypeName}}
+}
+
+func New{{.SetTypeName}}(items ...{{.MapKeyTypeName}}) *{{.SetTypeName}} {
+	mapItems := make([]{{.MapItemTypeName}}, 0, len(items))
+	var mapValue {{.MapValueTypeName}}
+	for _, x := range items {
+		mapItems = append(mapItems, {{.MapItemTypeName}}{Key: x, Value: mapValue})
+	}
+
+	return &{{.SetTypeName}}{backingMap: new{{.MapTypeName}}(mapItems)}
+}
+
+func (s *{{.SetTypeName}}) Add(item {{.MapKeyTypeName}}) *{{.SetTypeName}} {
+	var mapValue {{.MapValueTypeName}}
+	return &{{.SetTypeName}}{backingMap: s.backingMap.Store(item, mapValue)}
+}
+
+func (s *{{.SetTypeName}}) Delete(item {{.MapKeyTypeName}}) *{{.SetTypeName}} {
+	newMap := s.backingMap.Delete(item)
+	if newMap == s.backingMap {
+		return s
+	}
+
+	return &{{.SetTypeName}}{backingMap: newMap}
+
+}
+
+func (s *{{.SetTypeName}}) Contains(item {{.MapKeyTypeName}}) bool {
+	_, ok := s.backingMap.Load(item)
+	return ok
+}
+
+// Union
+// Difference
+// Symmetric Difference
+// Intersection
+// IsSubset
+// IsSuperSet
+
+func (s *{{.SetTypeName}}) Len() int {
+		return s.backingMap.Len()
+}
+
+
+
 
 `
 const SliceTemplate string = `

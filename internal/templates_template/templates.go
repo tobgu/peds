@@ -395,6 +395,7 @@ type GenericMapItemBucketVector struct {
 	shift uint
 }
 
+// TODO: Perhaps make this private?
 type GenericMapItem struct {
 	Key   GenericMapKeyType
 	Value GenericMapValueType
@@ -434,40 +435,6 @@ func (v *GenericMapItemBucketVector) tailOffset() uint {
 	return ((v.len - 1) >> shiftSize) << shiftSize
 }
 
-/*
-(*IntStringMapItemBucketVector).Set
-    131401     410565 (flat, cum) 58.11% of Total
-         .          .   1017:	if i < 0 || uint(i) >= v.len {
-         .          .   1018:		panic("Index out of bounds")
-         .          .   1019:	}
-         .          .   1020:
-         .          .   1021:	if uint(i) >= v.tailOffset() {
-     30805      30805   1022:		newTail := make([]IntStringMapItemBucket, len(v.tail))
-         .          .   1023:		copy(newTail, v.tail)
-         .          .   1024:		newTail[i&shiftBitMask] = item
-     30805      30805   1025:		return &IntStringMapItemBucketVector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
-         .          .   1026:	}
-         .          .   1027:
-     69791     348955   1028:	return &IntStringMapItemBucketVector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
-         .          .   1029:}
-
-
-        .          .   1031:func (v *IntStringMapItemBucketVector) doAssoc(level uint, node commonNode, i uint, item IntStringMapItemBucket) commonNode {
-         .          .   1032:	if level == 0 {
-     69791      69791   1033:		ret := make([]IntStringMapItemBucket, nodeSize)
-         .          .   1034:		copy(ret, node.([]IntStringMapItemBucket))
-         .          .   1035:		ret[i&shiftBitMask] = item
-     69791      69791   1036:		return ret
-         .          .   1037:	}
-         .          .   1038:
-     69791      69791   1039:	ret := make([]commonNode, nodeSize)
-         .          .   1040:	copy(ret, node.([]commonNode))
-         .          .   1041:	subidx := (i >> level) & shiftBitMask
-         .     139582   1042:	ret[subidx] = v.doAssoc(level-shiftSize, ret[subidx], i, item)
-     69791      69791   1043:	return ret
-         .          .   1044:}
-
-*/
 func (v *GenericMapItemBucketVector) Set(i int, item GenericMapItemBucket) *GenericMapItemBucketVector {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
@@ -608,7 +575,53 @@ func (m *GenericMapType) pos(key GenericMapKeyType) int {
 	return int(uint64(genericHash(key)) % uint64(m.backingVector.Len()))
 }
 
-func (m *GenericMapType) load(key GenericMapKeyType) (value GenericMapValueType, ok bool) {
+// Helper type used during map creation and reallocation
+type privateGenericMapItemBuckets struct {
+	buckets []GenericMapItemBucket
+	length  int
+}
+
+func newPrivateGenericMapItemBuckets(itemCount int) *privateGenericMapItemBuckets {
+	size := int(float64(itemCount)/lowerMapLoadFactor) + 1
+	buckets := make([]GenericMapItemBucket, size)
+	return &privateGenericMapItemBuckets{buckets: buckets}
+}
+
+func (b *privateGenericMapItemBuckets) AddItem(item GenericMapItem) {
+	ix := int(uint64(genericHash(item.Key)) % uint64(len(b.buckets)))
+	bucket := b.buckets[ix]
+	if bucket != nil {
+		// Hash collision, merge with existing bucket
+		for keyIx, bItem := range bucket {
+			if item.Key == bItem.Key {
+				bucket[keyIx] = item
+				return
+			}
+		}
+
+		b.buckets[ix] = append(bucket, GenericMapItem{Key: item.Key, Value: item.Value})
+		b.length++
+	} else {
+		bucket := make(GenericMapItemBucket, 0, int(math.Max(lowerMapLoadFactor, 1.0)))
+		b.buckets[ix] = append(bucket, item)
+		b.length++
+	}
+}
+
+func newGenericMapType(items []GenericMapItem) *GenericMapType {
+	buckets := newPrivateGenericMapItemBuckets(len(items))
+	for _, item := range items {
+		buckets.AddItem(item)
+	}
+
+	return &GenericMapType{backingVector: emptyGenericMapItemBucketVector.Append(buckets.buckets...), len: buckets.length}
+}
+
+func (m *GenericMapType) Len() int {
+	return int(m.len)
+}
+
+func (m *GenericMapType) Load(key GenericMapKeyType) (value GenericMapValueType, ok bool) {
 	bucket := m.backingVector.Get(m.pos(key))
 	if bucket != nil {
 		for _, item := range bucket {
@@ -622,7 +635,7 @@ func (m *GenericMapType) load(key GenericMapKeyType) (value GenericMapValueType,
 	return zeroValue, false
 }
 
-func (m *GenericMapType) store(key GenericMapKeyType, value GenericMapValueType) *GenericMapType {
+func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType) *GenericMapType {
 	// Grow backing vector if load factor is too high
 	if m.Len() >= m.backingVector.Len()*int(upperMapLoadFactor) {
 		buckets := newPrivateGenericMapItemBuckets(m.Len() + 1)
@@ -662,7 +675,7 @@ func (m *GenericMapType) store(key GenericMapKeyType, value GenericMapValueType)
 	return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len + 1}
 }
 
-func (m *GenericMapType) delete(key GenericMapKeyType) *GenericMapType {
+func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
 	// TODO: Shrink map if needed
 	pos := m.pos(key)
 	bucket := m.backingVector.Get(pos)
@@ -689,7 +702,7 @@ func (m *GenericMapType) delete(key GenericMapKeyType) *GenericMapType {
 	return m
 }
 
-func (m *GenericMapType) prange(f func(key GenericMapKeyType, value GenericMapValueType) bool) {
+func (m *GenericMapType) Range(f func(key GenericMapKeyType, value GenericMapValueType) bool) {
 	it := m.backingVector.Iter()
 	for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
 		for _, item := range bucket {
@@ -700,37 +713,14 @@ func (m *GenericMapType) prange(f func(key GenericMapKeyType, value GenericMapVa
 	}
 }
 
-// Helper type used during map creation and reallocation
-type privateGenericMapItemBuckets struct {
-	buckets []GenericMapItemBucket
-	length  int
-}
+func (m *GenericMapType) ToNativeMap() map[GenericMapKeyType]GenericMapValueType {
+	result := make(map[GenericMapKeyType]GenericMapValueType)
+	m.Range(func(key GenericMapKeyType, value GenericMapValueType) bool {
+		result[key] = value
+		return true
+	})
 
-func newPrivateGenericMapItemBuckets(itemCount int) *privateGenericMapItemBuckets {
-	size := int(float64(itemCount)/lowerMapLoadFactor) + 1
-	buckets := make([]GenericMapItemBucket, size)
-	return &privateGenericMapItemBuckets{buckets: buckets}
-}
-
-func (b *privateGenericMapItemBuckets) AddItem(item GenericMapItem) {
-	ix := int(uint64(genericHash(item.Key)) % uint64(len(b.buckets)))
-	bucket := b.buckets[ix]
-	if bucket != nil {
-		// Hash collision, merge with existing bucket
-		for keyIx, bItem := range bucket {
-			if item.Key == bItem.Key {
-				bucket[keyIx] = item
-				return
-			}
-		}
-
-		b.buckets[ix] = append(bucket, GenericMapItem{Key: item.Key, Value: item.Value})
-		b.length++
-	} else {
-		bucket := make(GenericMapItemBucket, 0, int(math.Max(lowerMapLoadFactor, 1.0)))
-		b.buckets[ix] = append(bucket, item)
-		b.length++
-	}
+	return result
 }
 
 //template:PublicMapTemplate
@@ -740,12 +730,7 @@ func (b *privateGenericMapItemBuckets) AddItem(item GenericMapItem) {
 ////////////////////////
 
 func NewGenericMapType(items ...GenericMapItem) *GenericMapType {
-	buckets := newPrivateGenericMapItemBuckets(len(items))
-	for _, item := range items {
-		buckets.AddItem(item)
-	}
-
-	return &GenericMapType{backingVector: emptyGenericMapItemBucketVector.Append(buckets.buckets...), len: buckets.length}
+	return newGenericMapType(items)
 }
 
 func NewGenericMapTypeFromNativeMap(m map[GenericMapKeyType]GenericMapValueType) *GenericMapType {
@@ -757,34 +742,51 @@ func NewGenericMapTypeFromNativeMap(m map[GenericMapKeyType]GenericMapValueType)
 	return &GenericMapType{backingVector: emptyGenericMapItemBucketVector.Append(buckets.buckets...), len: buckets.length}
 }
 
-func (m *GenericMapType) Len() int {
-	return int(m.len)
+//template:SetTemplate
+
+type GenericSetType struct {
+	backingMap *GenericMapType
 }
 
-func (m *GenericMapType) Load(key GenericMapKeyType) (value GenericMapValueType, ok bool) {
-	return m.load(key)
+func NewGenericSetType(items ...GenericMapKeyType) *GenericSetType {
+	mapItems := make([]GenericMapItem, 0, len(items))
+	var mapValue GenericMapValueType
+	for _, x := range items {
+		mapItems = append(mapItems, GenericMapItem{Key: x, Value: mapValue})
+	}
+
+	return &GenericSetType{backingMap: newGenericMapType(mapItems)}
 }
 
-func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType) *GenericMapType {
-	return m.store(key, value)
+func (s *GenericSetType) Add(item GenericMapKeyType) *GenericSetType {
+	var mapValue GenericMapValueType
+	return &GenericSetType{backingMap: s.backingMap.Store(item, mapValue)}
 }
 
-func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
-	return m.delete(key)
+func (s *GenericSetType) Delete(item GenericMapKeyType) *GenericSetType {
+	newMap := s.backingMap.Delete(item)
+	if newMap == s.backingMap {
+		return s
+	}
+
+	return &GenericSetType{backingMap: newMap}
+
 }
 
-func (m *GenericMapType) Range(f func(key GenericMapKeyType, value GenericMapValueType) bool) {
-	m.prange(f)
+func (s *GenericSetType) Contains(item GenericMapKeyType) bool {
+	_, ok := s.backingMap.Load(item)
+	return ok
 }
 
-func (m *GenericMapType) ToNativeMap() map[GenericMapKeyType]GenericMapValueType {
-	result := make(map[GenericMapKeyType]GenericMapValueType)
-	m.Range(func(key GenericMapKeyType, value GenericMapValueType) bool {
-		result[key] = value
-		return true
-	})
+// Union
+// Difference
+// Symmetric Difference
+// Intersection
+// IsSubset
+// IsSuperSet
 
-	return result
+func (s *GenericSetType) Len() int {
+	return s.backingMap.Len()
 }
 
 //template:commentsNotWantedInGeneratedCode
