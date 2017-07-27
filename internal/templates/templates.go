@@ -50,6 +50,7 @@ func assertSliceOk(start, stop, len int) {
 
 const upperMapLoadFactor float64 = 8.0
 const lowerMapLoadFactor float64 = 2.0
+const initialMapLoadFactor float64 = (upperMapLoadFactor + lowerMapLoadFactor) / 2
 
 //////////////////////////
 //// Hash functions //////
@@ -334,7 +335,6 @@ func (m *{{.MapTypeName}}) pos(key {{.MapKeyTypeName}}) int {
 	return int(uint64({{.MapKeyHashFunc}}(key)) % uint64(m.backingVector.Len()))
 }
 
-
 // Helper type used during map creation and reallocation
 type private{{.MapItemTypeName}}Buckets struct {
 	buckets []{{.MapItemTypeName}}Bucket
@@ -342,7 +342,7 @@ type private{{.MapItemTypeName}}Buckets struct {
 }
 
 func newPrivate{{.MapItemTypeName}}Buckets(itemCount int) *private{{.MapItemTypeName}}Buckets {
-	size := int(float64(itemCount)/lowerMapLoadFactor) + 1
+	size := int(float64(itemCount)/initialMapLoadFactor) + 1
 	buckets := make([]{{.MapItemTypeName}}Bucket, size)
 	return &private{{.MapItemTypeName}}Buckets{buckets: buckets}
 }
@@ -362,11 +362,21 @@ func (b *private{{.MapItemTypeName}}Buckets) AddItem(item {{.MapItemTypeName}}) 
 		b.buckets[ix] = append(bucket, {{.MapItemTypeName}}{Key: item.Key, Value: item.Value})
 		b.length++
 	} else {
-		bucket := make({{.MapItemTypeName}}Bucket, 0, int(math.Max(lowerMapLoadFactor, 1.0)))
+		bucket := make({{.MapItemTypeName}}Bucket, 0, int(math.Max(initialMapLoadFactor, 1.0)))
 		b.buckets[ix] = append(bucket, item)
 		b.length++
 	}
 }
+
+func (b *private{{.MapItemTypeName}}Buckets) AddItemsFromMap(m *{{.MapTypeName}}) {
+	it := m.backingVector.Iter()
+	for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
+		for _, item := range bucket {
+			b.AddItem(item)
+		}
+	}
+}
+
 
 func new{{.MapTypeName}}(items []{{.MapItemTypeName}}) *{{.MapTypeName}} {
 	buckets := newPrivate{{.MapItemTypeName}}Buckets(len(items))
@@ -399,13 +409,7 @@ func (m *{{.MapTypeName}}) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeN
 	// Grow backing vector if load factor is too high
 	if m.Len() >= m.backingVector.Len()*int(upperMapLoadFactor) {
 		buckets := newPrivate{{.MapItemTypeName}}Buckets(m.Len() + 1)
-		it := m.backingVector.Iter()
-		for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
-			for _, item := range bucket {
-				buckets.AddItem(item)
-			}
-		}
-
+		buckets.AddItemsFromMap(m)
 		buckets.AddItem({{.MapItemTypeName}}{Key: key, Value: value})
 		return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(buckets.buckets...), len: buckets.length}
 	}
@@ -436,7 +440,6 @@ func (m *{{.MapTypeName}}) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeN
 }
 
 func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
-	// TODO: Shrink map if needed
 	pos := m.pos(key)
 	bucket := m.backingVector.Get(pos)
 	if bucket != nil {
@@ -456,7 +459,15 @@ func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
 			newBucket = nil
 		}
 
-		return &{{.MapTypeName}}{backingVector: m.backingVector.Set(pos, newBucket), len: m.len - removedItemCount}
+		newMap := &{{.MapTypeName}}{backingVector: m.backingVector.Set(pos, newBucket), len: m.len - removedItemCount}
+		if newMap.backingVector.Len() > 1 && newMap.Len() < newMap.backingVector.Len()*int(lowerMapLoadFactor) {
+			// Shrink backing vector if needed to avoid occupying excessive space
+			buckets := newPrivate{{.MapItemTypeName}}Buckets(newMap.Len())
+			buckets.AddItemsFromMap(newMap)
+			return &{{.MapTypeName}}{backingVector: empty{{.MapItemTypeName}}BucketVector.Append(buckets.buckets...), len: buckets.length}
+		}
+
+		return newMap
 	}
 
 	return m
@@ -518,11 +529,13 @@ func New{{.SetTypeName}}(items ...{{.MapKeyTypeName}}) *{{.SetTypeName}} {
 	return &{{.SetTypeName}}{backingMap: new{{.MapTypeName}}(mapItems)}
 }
 
+// TODO: Variadic
 func (s *{{.SetTypeName}}) Add(item {{.MapKeyTypeName}}) *{{.SetTypeName}} {
 	var mapValue {{.MapValueTypeName}}
 	return &{{.SetTypeName}}{backingMap: s.backingMap.Store(item, mapValue)}
 }
 
+// TODO: Variadic
 func (s *{{.SetTypeName}}) Delete(item {{.MapKeyTypeName}}) *{{.SetTypeName}} {
 	newMap := s.backingMap.Delete(item)
 	if newMap == s.backingMap {
@@ -546,11 +559,8 @@ func (s *{{.SetTypeName}}) Contains(item {{.MapKeyTypeName}}) bool {
 // IsSuperSet
 
 func (s *{{.SetTypeName}}) Len() int {
-		return s.backingMap.Len()
+	return s.backingMap.Len()
 }
-
-
-
 
 `
 const SliceTemplate string = `

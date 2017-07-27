@@ -50,6 +50,7 @@ func assertSliceOk(start, stop, len int) {
 
 const upperMapLoadFactor float64 = 8.0
 const lowerMapLoadFactor float64 = 2.0
+const initialMapLoadFactor float64 = (upperMapLoadFactor + lowerMapLoadFactor) / 2
 
 //////////////////////////
 //// Hash functions //////
@@ -582,7 +583,7 @@ type privateGenericMapItemBuckets struct {
 }
 
 func newPrivateGenericMapItemBuckets(itemCount int) *privateGenericMapItemBuckets {
-	size := int(float64(itemCount)/lowerMapLoadFactor) + 1
+	size := int(float64(itemCount)/initialMapLoadFactor) + 1
 	buckets := make([]GenericMapItemBucket, size)
 	return &privateGenericMapItemBuckets{buckets: buckets}
 }
@@ -602,9 +603,18 @@ func (b *privateGenericMapItemBuckets) AddItem(item GenericMapItem) {
 		b.buckets[ix] = append(bucket, GenericMapItem{Key: item.Key, Value: item.Value})
 		b.length++
 	} else {
-		bucket := make(GenericMapItemBucket, 0, int(math.Max(lowerMapLoadFactor, 1.0)))
+		bucket := make(GenericMapItemBucket, 0, int(math.Max(initialMapLoadFactor, 1.0)))
 		b.buckets[ix] = append(bucket, item)
 		b.length++
+	}
+}
+
+func (b *privateGenericMapItemBuckets) AddItemsFromMap(m *GenericMapType) {
+	it := m.backingVector.Iter()
+	for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
+		for _, item := range bucket {
+			b.AddItem(item)
+		}
 	}
 }
 
@@ -639,13 +649,7 @@ func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType)
 	// Grow backing vector if load factor is too high
 	if m.Len() >= m.backingVector.Len()*int(upperMapLoadFactor) {
 		buckets := newPrivateGenericMapItemBuckets(m.Len() + 1)
-		it := m.backingVector.Iter()
-		for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
-			for _, item := range bucket {
-				buckets.AddItem(item)
-			}
-		}
-
+		buckets.AddItemsFromMap(m)
 		buckets.AddItem(GenericMapItem{Key: key, Value: value})
 		return &GenericMapType{backingVector: emptyGenericMapItemBucketVector.Append(buckets.buckets...), len: buckets.length}
 	}
@@ -676,7 +680,6 @@ func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType)
 }
 
 func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
-	// TODO: Shrink map if needed
 	pos := m.pos(key)
 	bucket := m.backingVector.Get(pos)
 	if bucket != nil {
@@ -696,7 +699,15 @@ func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
 			newBucket = nil
 		}
 
-		return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len - removedItemCount}
+		newMap := &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len - removedItemCount}
+		if newMap.backingVector.Len() > 1 && newMap.Len() < newMap.backingVector.Len()*int(lowerMapLoadFactor) {
+			// Shrink backing vector if needed to avoid occupying excessive space
+			buckets := newPrivateGenericMapItemBuckets(newMap.Len())
+			buckets.AddItemsFromMap(newMap)
+			return &GenericMapType{backingVector: emptyGenericMapItemBucketVector.Append(buckets.buckets...), len: buckets.length}
+		}
+
+		return newMap
 	}
 
 	return m
@@ -758,11 +769,13 @@ func NewGenericSetType(items ...GenericMapKeyType) *GenericSetType {
 	return &GenericSetType{backingMap: newGenericMapType(mapItems)}
 }
 
+// TODO: Variadic
 func (s *GenericSetType) Add(item GenericMapKeyType) *GenericSetType {
 	var mapValue GenericMapValueType
 	return &GenericSetType{backingMap: s.backingMap.Store(item, mapValue)}
 }
 
+// TODO: Variadic
 func (s *GenericSetType) Delete(item GenericMapKeyType) *GenericSetType {
 	newMap := s.backingMap.Delete(item)
 	if newMap == s.backingMap {

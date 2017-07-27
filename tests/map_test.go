@@ -106,16 +106,25 @@ func TestRangeStopOnKey(t *testing.T) {
 	}
 }
 
-func TestLargeInsertAndLookup(t *testing.T) {
+func TestLargeInsertLookupDelete(t *testing.T) {
+	size := 50000
 	m := NewStringIntMap()
-	for j := 0; j < 100000; j++ {
+	for j := 0; j < size; j++ {
 		m = m.Store(fmt.Sprintf("%d", j), j)
 	}
 
-	for j := 0; j < 100000; j++ {
+	for j := 0; j < size; j++ {
 		v, ok := m.Load(fmt.Sprintf("%d", j))
-		assertEqualBool(t, ok, true)
+		assertEqualBool(t, true, ok)
 		assertEqual(t, v, j)
+	}
+
+	for j := 0; j < size; j++ {
+		key := fmt.Sprintf("%d", j)
+		m = m.Delete(key)
+		assertEqual(t, size-j-1, m.Len())
+		_, ok := m.Load(key)
+		assertEqualBool(t, false, ok)
 	}
 }
 
