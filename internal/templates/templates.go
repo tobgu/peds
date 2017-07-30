@@ -377,7 +377,6 @@ func (b *private{{.MapItemTypeName}}Buckets) AddItemsFromMap(m *{{.MapTypeName}}
 	}
 }
 
-
 func new{{.MapTypeName}}(items []{{.MapItemTypeName}}) *{{.MapTypeName}} {
 	buckets := newPrivate{{.MapItemTypeName}}Buckets(len(items))
 	for _, item := range items {
@@ -529,13 +528,13 @@ func New{{.SetTypeName}}(items ...{{.MapKeyTypeName}}) *{{.SetTypeName}} {
 	return &{{.SetTypeName}}{backingMap: new{{.MapTypeName}}(mapItems)}
 }
 
-// TODO: Variadic
+// TODO: Variadic?
 func (s *{{.SetTypeName}}) Add(item {{.MapKeyTypeName}}) *{{.SetTypeName}} {
 	var mapValue {{.MapValueTypeName}}
 	return &{{.SetTypeName}}{backingMap: s.backingMap.Store(item, mapValue)}
 }
 
-// TODO: Variadic
+// TODO: Variadic?
 func (s *{{.SetTypeName}}) Delete(item {{.MapKeyTypeName}}) *{{.SetTypeName}} {
 	newMap := s.backingMap.Delete(item)
 	if newMap == s.backingMap {
@@ -543,7 +542,6 @@ func (s *{{.SetTypeName}}) Delete(item {{.MapKeyTypeName}}) *{{.SetTypeName}} {
 	}
 
 	return &{{.SetTypeName}}{backingMap: newMap}
-
 }
 
 func (s *{{.SetTypeName}}) Contains(item {{.MapKeyTypeName}}) bool {
@@ -551,6 +549,30 @@ func (s *{{.SetTypeName}}) Contains(item {{.MapKeyTypeName}}) bool {
 	return ok
 }
 
+func (s *{{.SetTypeName}}) Range(f func(item {{.MapKeyTypeName}}) bool) {
+	s.backingMap.Range(func(k {{.MapKeyTypeName}}, _ {{.MapValueTypeName}}) bool {
+		return f(k)
+	})
+}
+
+func (s *{{.SetTypeName}}) IsSubset(other *{{.SetTypeName}}) bool {
+	if other.Len() < s.Len() {
+		return false
+	}
+
+	isSubset := true
+	s.Range(func(item {{.MapKeyTypeName}}) bool {
+		if !other.Contains(item) {
+			isSubset = false
+		}
+
+		return isSubset
+	})
+
+	return isSubset
+}
+
+// ToGenericSlice
 // Union
 // Difference
 // Symmetric Difference

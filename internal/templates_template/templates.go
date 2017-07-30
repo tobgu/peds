@@ -769,13 +769,13 @@ func NewGenericSetType(items ...GenericMapKeyType) *GenericSetType {
 	return &GenericSetType{backingMap: newGenericMapType(mapItems)}
 }
 
-// TODO: Variadic
+// TODO: Variadic?
 func (s *GenericSetType) Add(item GenericMapKeyType) *GenericSetType {
 	var mapValue GenericMapValueType
 	return &GenericSetType{backingMap: s.backingMap.Store(item, mapValue)}
 }
 
-// TODO: Variadic
+// TODO: Variadic?
 func (s *GenericSetType) Delete(item GenericMapKeyType) *GenericSetType {
 	newMap := s.backingMap.Delete(item)
 	if newMap == s.backingMap {
@@ -783,7 +783,6 @@ func (s *GenericSetType) Delete(item GenericMapKeyType) *GenericSetType {
 	}
 
 	return &GenericSetType{backingMap: newMap}
-
 }
 
 func (s *GenericSetType) Contains(item GenericMapKeyType) bool {
@@ -791,11 +790,34 @@ func (s *GenericSetType) Contains(item GenericMapKeyType) bool {
 	return ok
 }
 
+func (s *GenericSetType) Range(f func(item GenericMapKeyType) bool) {
+	s.backingMap.Range(func(k GenericMapKeyType, _ GenericMapValueType) bool {
+		return f(k)
+	})
+}
+
+func (s *GenericSetType) IsSubset(other *GenericSetType) bool {
+	if other.Len() < s.Len() {
+		return false
+	}
+
+	isSubset := true
+	s.Range(func(item GenericMapKeyType) bool {
+		if !other.Contains(item) {
+			isSubset = false
+		}
+
+		return isSubset
+	})
+
+	return isSubset
+}
+
+// ToNativeSlice
 // Union
 // Difference
 // Symmetric Difference
 // Intersection
-// IsSubset
 // IsSuperSet
 
 func (s *GenericSetType) Len() int {
