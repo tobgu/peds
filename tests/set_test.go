@@ -50,3 +50,29 @@ func TestSetIsSubset(t *testing.T) {
 		assertEqualBool(t, false, NewFooSet(1, 2).IsSubset(NewFooSet(3, 4)))
 	})
 }
+
+func TestSetIsSuperset(t *testing.T) {
+	t.Run("Empty sets are supersets of empty sets", func(t *testing.T) {
+		assertEqualBool(t, true, NewFooSet().IsSuperset(NewFooSet()))
+	})
+
+	t.Run("Empty sets are not supsets of non empty sets", func(t *testing.T) {
+		assertEqualBool(t, false, NewFooSet().IsSuperset(NewFooSet(1, 2, 3)))
+	})
+
+	t.Run("Equal non-empty sets are supersets of each other", func(t *testing.T) {
+		assertEqualBool(t, true, NewFooSet(1, 2).IsSuperset(NewFooSet(1, 2)))
+	})
+
+	t.Run("Strict superset", func(t *testing.T) {
+		assertEqualBool(t, true, NewFooSet(1, 2, 3).IsSuperset(NewFooSet(1, 2)))
+	})
+
+	t.Run("Overlapping but not superset", func(t *testing.T) {
+		assertEqualBool(t, false, NewFooSet(1, 2).IsSuperset(NewFooSet(2, 3)))
+	})
+
+	t.Run("Non overlapping", func(t *testing.T) {
+		assertEqualBool(t, false, NewFooSet(1, 2).IsSuperset(NewFooSet(3, 4)))
+	})
+}

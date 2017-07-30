@@ -572,12 +572,15 @@ func (s *{{.SetTypeName}}) IsSubset(other *{{.SetTypeName}}) bool {
 	return isSubset
 }
 
-// ToGenericSlice
+func (s *{{.SetTypeName}}) IsSuperset(other *{{.SetTypeName}}) bool {
+	return other.IsSubset(s)
+}
+
+// ToNativeSlice
 // Union
 // Difference
 // Symmetric Difference
 // Intersection
-// IsSubset
 // IsSuperSet
 
 func (s *{{.SetTypeName}}) Len() int {

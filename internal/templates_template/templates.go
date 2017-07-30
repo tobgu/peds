@@ -813,6 +813,10 @@ func (s *GenericSetType) IsSubset(other *GenericSetType) bool {
 	return isSubset
 }
 
+func (s *GenericSetType) IsSuperset(other *GenericSetType) bool {
+	return other.IsSubset(s)
+}
+
 // ToNativeSlice
 // Union
 // Difference
