@@ -76,3 +76,24 @@ func TestSetIsSuperset(t *testing.T) {
 		assertEqualBool(t, false, NewFooSet(1, 2).IsSuperset(NewFooSet(3, 4)))
 	})
 }
+
+func assertSetsEqual(s1, s2 *FooSet) bool {
+	return s1.Equals(s2)
+}
+
+func TestSetUnion(t *testing.T) {
+	emptySet := NewFooSet()
+
+	t.Run("Empty sets union empty set is an empty set", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(emptySet, emptySet.Union(emptySet)))
+	})
+
+	t.Run("Empty sets union non empty set is non empty set", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(NewFooSet(1, 2, 3), emptySet.Union(NewFooSet(1, 2, 3))))
+	})
+
+	t.Run("Non empty sets union non empty contains all elements from both sets", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(NewFooSet(1, 2, 3), NewFooSet(1, 2).Union(NewFooSet(2, 3))))
+	})
+
+}

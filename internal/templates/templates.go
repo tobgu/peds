@@ -576,12 +576,30 @@ func (s *{{.SetTypeName}}) IsSuperset(other *{{.SetTypeName}}) bool {
 	return other.IsSubset(s)
 }
 
+func (s *{{.SetTypeName}}) Union(other *{{.SetTypeName}}) *{{.SetTypeName}} {
+	result := s
+
+	// Simplest possible solution right now. Would probable be more efficient
+	// to concatenate two slices of elements from the two sets and create a
+	// new set from that slice for many cases.
+	other.Range(func(item {{.MapKeyTypeName}}) bool {
+		result = result.Add(item)
+		return true
+	})
+
+	return result
+}
+
+func (s *{{.SetTypeName}}) Equals(other *{{.SetTypeName}}) bool {
+	return s.Len() == other.Len() && s.IsSubset(other)
+}
+
+
 // ToNativeSlice
 // Union
 // Difference
 // Symmetric Difference
 // Intersection
-// IsSuperSet
 
 func (s *{{.SetTypeName}}) Len() int {
 	return s.backingMap.Len()
