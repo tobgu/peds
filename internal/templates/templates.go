@@ -594,12 +594,43 @@ func (s *{{.SetTypeName}}) Equals(other *{{.SetTypeName}}) bool {
 	return s.Len() == other.Len() && s.IsSubset(other)
 }
 
+func (s *{{.SetTypeName}}) difference(other *{{.SetTypeName}}) []{{.MapKeyTypeName}} {
+	items := make([]{{.MapKeyTypeName}}, 0)
+	s.Range(func(item {{.MapKeyTypeName}}) bool {
+		if !other.Contains(item) {
+			items = append(items, item)
+		}
+
+		return true
+	})
+
+	return items
+}
+
+func (s *{{.SetTypeName}}) Difference(other *{{.SetTypeName}}) *{{.SetTypeName}} {
+	return New{{.SetTypeName}}(s.difference(other)...)
+}
+
+func (s *{{.SetTypeName}}) SymmetricDifference(other *{{.SetTypeName}}) *{{.SetTypeName}} {
+	items := s.difference(other)
+	items = append(items, other.difference(s)...)
+	return New{{.SetTypeName}}(items...)
+}
+
+func (s *{{.SetTypeName}}) Intersection(other *{{.SetTypeName}}) *{{.SetTypeName}} {
+	items := make([]{{.MapKeyTypeName}}, 0)
+	s.Range(func(item {{.MapKeyTypeName}}) bool {
+		if other.Contains(item) {
+			items = append(items, item)
+		}
+
+		return true
+	})
+
+	return New{{.SetTypeName}}(items...)
+}
 
 // ToNativeSlice
-// Union
-// Difference
-// Symmetric Difference
-// Intersection
 
 func (s *{{.SetTypeName}}) Len() int {
 	return s.backingMap.Len()

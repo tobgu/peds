@@ -97,3 +97,62 @@ func TestSetUnion(t *testing.T) {
 	})
 
 }
+
+func TestSetDifference(t *testing.T) {
+	emptySet := NewFooSet()
+	nonEmptySet := NewFooSet(1, 2, 3)
+
+	t.Run("Difference between empty sets are empty sets", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(emptySet, emptySet.Difference(emptySet)))
+	})
+
+	t.Run("Difference between non empty set and empty set is the non empty set", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(nonEmptySet, nonEmptySet.Difference(emptySet)))
+	})
+
+	t.Run("Difference between empty set and non empty set is the empty set", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(emptySet, emptySet.Difference(nonEmptySet)))
+	})
+
+	t.Run("Difference results in all elements part of first set but not second", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(NewFooSet(1), NewFooSet(1, 2).Difference(NewFooSet(2, 3))))
+	})
+}
+
+func TestSetSymmetricDifference(t *testing.T) {
+	emptySet := NewFooSet()
+	nonEmptySet := NewFooSet(1, 2, 3)
+
+	t.Run("Symmetric difference between empty sets are empty sets", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(emptySet, emptySet.SymmetricDifference(emptySet)))
+	})
+
+	t.Run("Symmetric difference between non empty set and empty set is the non empty set", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(nonEmptySet, nonEmptySet.SymmetricDifference(emptySet)))
+	})
+
+	t.Run("Symmetric difference between empty set and non empty set is the non empty set", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(nonEmptySet, emptySet.SymmetricDifference(nonEmptySet)))
+	})
+
+	t.Run("Symmetric difference is all elements part of first or second set but not both", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(NewFooSet(1, 3), NewFooSet(1, 2).SymmetricDifference(NewFooSet(2, 3))))
+	})
+}
+
+func TestSetIntersection(t *testing.T) {
+	emptySet := NewFooSet()
+	nonEmptySet := NewFooSet(1, 2, 3)
+
+	t.Run("Intersection between empty sets are empty sets", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(emptySet, emptySet.Intersection(emptySet)))
+	})
+
+	t.Run("Intersection between non empty set and empty set is the empty set", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(emptySet, nonEmptySet.Intersection(emptySet)))
+	})
+
+	t.Run("Intersection results in all elements part of first and second set", func(t *testing.T) {
+		assertEqualBool(t, true, assertSetsEqual(NewFooSet(2), NewFooSet(1, 2).Intersection(NewFooSet(2, 3))))
+	})
+}

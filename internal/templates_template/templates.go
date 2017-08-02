@@ -835,11 +835,43 @@ func (s *GenericSetType) Equals(other *GenericSetType) bool {
 	return s.Len() == other.Len() && s.IsSubset(other)
 }
 
+func (s *GenericSetType) difference(other *GenericSetType) []GenericMapKeyType {
+	items := make([]GenericMapKeyType, 0)
+	s.Range(func(item GenericMapKeyType) bool {
+		if !other.Contains(item) {
+			items = append(items, item)
+		}
+
+		return true
+	})
+
+	return items
+}
+
+func (s *GenericSetType) Difference(other *GenericSetType) *GenericSetType {
+	return NewGenericSetType(s.difference(other)...)
+}
+
+func (s *GenericSetType) SymmetricDifference(other *GenericSetType) *GenericSetType {
+	items := s.difference(other)
+	items = append(items, other.difference(s)...)
+	return NewGenericSetType(items...)
+}
+
+func (s *GenericSetType) Intersection(other *GenericSetType) *GenericSetType {
+	items := make([]GenericMapKeyType, 0)
+	s.Range(func(item GenericMapKeyType) bool {
+		if other.Contains(item) {
+			items = append(items, item)
+		}
+
+		return true
+	})
+
+	return NewGenericSetType(items...)
+}
+
 // ToNativeSlice
-// Union
-// Difference
-// Symmetric Difference
-// Intersection
 
 func (s *GenericSetType) Len() int {
 	return s.backingMap.Len()
