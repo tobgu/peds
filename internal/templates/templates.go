@@ -630,10 +630,18 @@ func (s *{{.SetTypeName}}) Intersection(other *{{.SetTypeName}}) *{{.SetTypeName
 	return New{{.SetTypeName}}(items...)
 }
 
-// ToNativeSlice
-
 func (s *{{.SetTypeName}}) Len() int {
 	return s.backingMap.Len()
+}
+
+func (s *{{.SetTypeName}}) ToNativeSlice() []{{.MapKeyTypeName}} {
+	items := make([]{{.MapKeyTypeName}}, 0, s.Len())
+	s.Range(func(item {{.MapKeyTypeName}}) bool {
+		items = append(items, item)
+		return true
+	})
+
+	return items
 }
 
 `

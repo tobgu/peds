@@ -53,6 +53,13 @@ func renderTemplates(specs []templateSpec, templateData interface{}, dst io.Writ
 }
 
 func main() {
+	// TODO: - imports
+	//       - Handle white spaces
+	//       - Documentation
+	//       - Experience report
+	//       - Clean up this file
+	//       - Clean up/unify naming, template generation?
+
 	flagset := flag.NewFlagSet("server", flag.ExitOnError)
 	var (
 		maps = flagset.String("maps", "", "Map1<int,string>;Map2<float,int>")

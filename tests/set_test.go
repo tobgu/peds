@@ -156,3 +156,12 @@ func TestSetIntersection(t *testing.T) {
 		assertEqualBool(t, true, assertSetsEqual(NewFooSet(2), NewFooSet(1, 2).Intersection(NewFooSet(2, 3))))
 	})
 }
+
+func TestSetToNativeSlice(t *testing.T) {
+	set := NewIntSet(1, 2, 3)
+	theSlice := set.ToNativeSlice()
+	assertEqual(t, 3, len(theSlice))
+	assertEqual(t, 1, theSlice[0])
+	assertEqual(t, 2, theSlice[1])
+	assertEqual(t, 3, theSlice[2])
+}

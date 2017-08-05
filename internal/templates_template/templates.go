@@ -871,10 +871,18 @@ func (s *GenericSetType) Intersection(other *GenericSetType) *GenericSetType {
 	return NewGenericSetType(items...)
 }
 
-// ToNativeSlice
-
 func (s *GenericSetType) Len() int {
 	return s.backingMap.Len()
+}
+
+func (s *GenericSetType) ToNativeSlice() []GenericMapKeyType {
+	items := make([]GenericMapKeyType, 0, s.Len())
+	s.Range(func(item GenericMapKeyType) bool {
+		items = append(items, item)
+		return true
+	})
+
+	return items
 }
 
 //template:commentsNotWantedInGeneratedCode
