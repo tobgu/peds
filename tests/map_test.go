@@ -289,6 +289,5 @@ go tool pprof --alloc_objects tests.test insert.mprof
          - Custom imports?
          - Non comparable types cannot be used as keys (should be detected during compilation)
    	     - Test custom struct as key
-   	     - Nicer interface for the vector iterator, see Scanner for an example
    	     - Make it possible to explicitly state which hash function to use and/or which the actual underlying type is
 */

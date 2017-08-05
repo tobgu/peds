@@ -59,6 +59,7 @@ func main() {
 	//       - Experience report
 	//       - Clean up this file
 	//       - Clean up/unify naming, template generation?
+	//       - Review public/private functions and types
 
 	flagset := flag.NewFlagSet("server", flag.ExitOnError)
 	var (

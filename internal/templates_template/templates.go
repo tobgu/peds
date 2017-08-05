@@ -285,38 +285,17 @@ func (v *GenericVectorType) Len() int {
 	return int(v.len)
 }
 
-func (v *GenericVectorType) Iter() *GenericVectorTypeIterator {
-	return newGenericVectorTypeIterator(v, 0, v.Len())
-}
+func (v *GenericVectorType) Range(f func(GenericType) bool) {
+	var currentNode []GenericType
+	for i := uint(0); i < v.len; i++ {
+		if i&shiftBitMask == 0 {
+			currentNode = v.sliceFor(uint(i))
+		}
 
-//////////////////
-//// Iterator ////
-//////////////////
-
-type GenericVectorTypeIterator struct {
-	vector      *GenericVectorType
-	currentNode []GenericType
-	stop, pos   int
-}
-
-func newGenericVectorTypeIterator(vector *GenericVectorType, start, stop int) *GenericVectorTypeIterator {
-	it := GenericVectorTypeIterator{vector: vector, pos: start, stop: stop}
-	it.currentNode = vector.sliceFor(uint(it.pos))
-	return &it
-}
-
-func (it *GenericVectorTypeIterator) Next() (value GenericType, ok bool) {
-	if it.pos >= it.stop {
-		return value, false
+		if !f(currentNode[i&shiftBitMask]) {
+			return
+		}
 	}
-
-	if it.pos&shiftBitMask == 0 {
-		it.currentNode = it.vector.sliceFor(uint(it.pos))
-	}
-
-	value = it.currentNode[it.pos&shiftBitMask]
-	it.pos++
-	return value, true
 }
 
 //template:SliceTemplate
@@ -375,8 +354,17 @@ func (s *GenericVectorTypeSlice) Slice(start, stop int) *GenericVectorTypeSlice 
 	return &GenericVectorTypeSlice{vector: s.vector, start: s.start + start, stop: s.start + stop}
 }
 
-func (s *GenericVectorTypeSlice) Iter() *GenericVectorTypeIterator {
-	return newGenericVectorTypeIterator(s.vector, s.start, s.stop)
+func (s *GenericVectorTypeSlice) Range(f func(GenericType) bool) {
+	var currentNode []GenericType
+	for i := uint(s.start); i < uint(s.stop); i++ {
+		if i&shiftBitMask == 0 || i == uint(s.start) {
+			currentNode = s.vector.sliceFor(uint(i))
+		}
+
+		if !f(currentNode[i&shiftBitMask]) {
+			return
+		}
+	}
 }
 
 //template:PrivateMapTemplate
@@ -529,38 +517,17 @@ func (v *GenericMapItemBucketVector) Len() int {
 	return int(v.len)
 }
 
-func (v *GenericMapItemBucketVector) Iter() *GenericMapItemBucketVectorIterator {
-	return newGenericMapItemBucketVectorIterator(v, 0, v.Len())
-}
+func (v *GenericMapItemBucketVector) Range(f func(GenericMapItemBucket) bool) {
+	var currentNode []GenericMapItemBucket
+	for i := uint(0); i < v.len; i++ {
+		if i&shiftBitMask == 0 {
+			currentNode = v.sliceFor(uint(i))
+		}
 
-//////////////////
-//// Iterator ////
-//////////////////
-
-type GenericMapItemBucketVectorIterator struct {
-	vector      *GenericMapItemBucketVector
-	currentNode []GenericMapItemBucket
-	stop, pos   int
-}
-
-func newGenericMapItemBucketVectorIterator(vector *GenericMapItemBucketVector, start, stop int) *GenericMapItemBucketVectorIterator {
-	it := GenericMapItemBucketVectorIterator{vector: vector, pos: start, stop: stop}
-	it.currentNode = vector.sliceFor(uint(it.pos))
-	return &it
-}
-
-func (it *GenericMapItemBucketVectorIterator) Next() (value GenericMapItemBucket, ok bool) {
-	if it.pos >= it.stop {
-		return value, false
+		if !f(currentNode[i&shiftBitMask]) {
+			return
+		}
 	}
-
-	if it.pos&shiftBitMask == 0 {
-		it.currentNode = it.vector.sliceFor(uint(it.pos))
-	}
-
-	value = it.currentNode[it.pos&shiftBitMask]
-	it.pos++
-	return value, true
 }
 
 type GenericMapType struct {
@@ -610,12 +577,12 @@ func (b *privateGenericMapItemBuckets) AddItem(item GenericMapItem) {
 }
 
 func (b *privateGenericMapItemBuckets) AddItemsFromMap(m *GenericMapType) {
-	it := m.backingVector.Iter()
-	for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
+	m.backingVector.Range(func(bucket GenericMapItemBucket) bool {
 		for _, item := range bucket {
 			b.AddItem(item)
 		}
-	}
+		return true
+	})
 }
 
 func newGenericMapType(items []GenericMapItem) *GenericMapType {
@@ -713,15 +680,15 @@ func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
 	return m
 }
 
-func (m *GenericMapType) Range(f func(key GenericMapKeyType, value GenericMapValueType) bool) {
-	it := m.backingVector.Iter()
-	for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
+func (m *GenericMapType) Range(f func(GenericMapKeyType, GenericMapValueType) bool) {
+	m.backingVector.Range(func(bucket GenericMapItemBucket) bool {
 		for _, item := range bucket {
 			if !f(item.Key, item.Value) {
-				return
+				return false
 			}
 		}
-	}
+		return true
+	})
 }
 
 func (m *GenericMapType) ToNativeMap() map[GenericMapKeyType]GenericMapValueType {
@@ -790,7 +757,7 @@ func (s *GenericSetType) Contains(item GenericMapKeyType) bool {
 	return ok
 }
 
-func (s *GenericSetType) Range(f func(item GenericMapKeyType) bool) {
+func (s *GenericSetType) Range(f func(GenericMapKeyType) bool) {
 	s.backingMap.Range(func(k GenericMapKeyType, _ GenericMapValueType) bool {
 		return f(k)
 	})

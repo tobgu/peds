@@ -140,23 +140,32 @@ func TestVectorSliceOutOfBounds(t *testing.T) {
 	}
 }
 
-//////////////
-/// Vector ///
-//////////////
-
-func TestIteration(t *testing.T) {
+func TestCompleteIteration(t *testing.T) {
 	input := inputSlice(0, 10000)
-	vec := NewIntVector(input...)
-	iter := vec.Iter()
 	dst := make([]int, 0, 10000)
-	for elem, ok := iter.Next(); ok; elem, ok = iter.Next() {
+	NewIntVector(input...).Range(func(elem int) bool {
 		dst = append(dst, elem)
-	}
+		return true
+	})
 
 	assertEqual(t, len(input), len(dst))
 	assertEqual(t, input[0], dst[0])
 	assertEqual(t, input[5000], dst[5000])
 	assertEqual(t, input[9999], dst[9999])
+}
+
+func TestCanceledIteration(t *testing.T) {
+	input := inputSlice(0, 10000)
+	count := 0
+	NewIntVector(input...).Range(func(elem int) bool {
+		count++
+		if count == 5 {
+			return false
+		}
+		return true
+	})
+
+	assertEqual(t, 5, count)
 }
 
 /////////////
@@ -247,18 +256,35 @@ func TestSliceAppendAtMiddleToEndOfBackingVector(t *testing.T) {
 	assertEqual(t, 50, slice.Len())
 }
 
-func TestSliceIteration(t *testing.T) {
+func TestSliceCompleteIteration(t *testing.T) {
 	vec := NewIntVector(inputSlice(0, 1000)...)
-	iter := vec.Slice(5, 200).Iter()
 	dst := make([]int, 0)
-	for elem, ok := iter.Next(); ok; elem, ok = iter.Next() {
+
+	vec.Slice(5, 200).Range(func(elem int) bool {
 		dst = append(dst, elem)
-	}
+		return true
+	})
 
 	assertEqual(t, 195, len(dst))
 	assertEqual(t, 5, dst[0])
 	assertEqual(t, 55, dst[50])
 	assertEqual(t, 199, dst[194])
+}
+
+func TestSliceCanceledIteration(t *testing.T) {
+	vec := NewIntVector(inputSlice(0, 1000)...)
+	count := 0
+
+	vec.Slice(5, 200).Range(func(elem int) bool {
+		count++
+		if count == 5 {
+			return false
+		}
+
+		return true
+	})
+
+	assertEqual(t, 5, count)
 }
 
 func TestSliceSetOutOfBoundsNegative(t *testing.T) {
@@ -314,11 +340,10 @@ func runIteration(b *testing.B, size int) {
 	vec := NewIntVector(inputSlice(0, size)...)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		iter := vec.Iter()
-		for value, ok := iter.Next(); ok; value, ok = iter.Next() {
-			result += value
-		}
-
+		vec.Range(func(x int) bool {
+			result += x
+			return true
+		})
 	}
 }
 

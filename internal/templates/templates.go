@@ -288,38 +288,17 @@ func (v *{{.MapItemTypeName}}BucketVector) Len() int {
 	return int(v.len)
 }
 
-func (v *{{.MapItemTypeName}}BucketVector) Iter() *{{.MapItemTypeName}}BucketVectorIterator {
-	return new{{.MapItemTypeName}}BucketVectorIterator(v, 0, v.Len())
-}
+func (v *{{.MapItemTypeName}}BucketVector) Range(f func({{.MapItemTypeName}}Bucket) bool) {
+	var currentNode []{{.MapItemTypeName}}Bucket
+	for i := uint(0); i < v.len; i++ {
+		if i&shiftBitMask == 0 {
+			currentNode = v.sliceFor(uint(i))
+		}
 
-//////////////////
-//// Iterator ////
-//////////////////
-
-type {{.MapItemTypeName}}BucketVectorIterator struct {
-	vector      *{{.MapItemTypeName}}BucketVector
-	currentNode []{{.MapItemTypeName}}Bucket
-	stop, pos   int
-}
-
-func new{{.MapItemTypeName}}BucketVectorIterator(vector *{{.MapItemTypeName}}BucketVector, start, stop int) *{{.MapItemTypeName}}BucketVectorIterator {
-	it := {{.MapItemTypeName}}BucketVectorIterator{vector: vector, pos: start, stop: stop}
-	it.currentNode = vector.sliceFor(uint(it.pos))
-	return &it
-}
-
-func (it *{{.MapItemTypeName}}BucketVectorIterator) Next() (value {{.MapItemTypeName}}Bucket, ok bool) {
-	if it.pos >= it.stop {
-		return value, false
+		if !f(currentNode[i&shiftBitMask]) {
+			return
+		}
 	}
-
-	if it.pos&shiftBitMask == 0 {
-		it.currentNode = it.vector.sliceFor(uint(it.pos))
-	}
-
-	value = it.currentNode[it.pos&shiftBitMask]
-	it.pos++
-	return value, true
 }
 
 type {{.MapTypeName}} struct {
@@ -369,12 +348,12 @@ func (b *private{{.MapItemTypeName}}Buckets) AddItem(item {{.MapItemTypeName}}) 
 }
 
 func (b *private{{.MapItemTypeName}}Buckets) AddItemsFromMap(m *{{.MapTypeName}}) {
-	it := m.backingVector.Iter()
-	for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
+	m.backingVector.Range(func(bucket {{.MapItemTypeName}}Bucket) bool {
 		for _, item := range bucket {
 			b.AddItem(item)
 		}
-	}
+		return true
+	})
 }
 
 func new{{.MapTypeName}}(items []{{.MapItemTypeName}}) *{{.MapTypeName}} {
@@ -472,15 +451,15 @@ func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
 	return m
 }
 
-func (m *{{.MapTypeName}}) Range(f func(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) bool) {
-	it := m.backingVector.Iter()
-	for bucket, ok := it.Next(); ok; bucket, ok = it.Next() {
+func (m *{{.MapTypeName}}) Range(f func({{.MapKeyTypeName}}, {{.MapValueTypeName}}) bool) {
+	m.backingVector.Range(func(bucket {{.MapItemTypeName}}Bucket) bool {
 		for _, item := range bucket {
 			if !f(item.Key, item.Value) {
-				return
+				return false
 			}
 		}
-	}
+		return true
+	})
 }
 
 func (m *{{.MapTypeName}}) ToNativeMap() map[{{.MapKeyTypeName}}]{{.MapValueTypeName}} {
@@ -549,7 +528,7 @@ func (s *{{.SetTypeName}}) Contains(item {{.MapKeyTypeName}}) bool {
 	return ok
 }
 
-func (s *{{.SetTypeName}}) Range(f func(item {{.MapKeyTypeName}}) bool) {
+func (s *{{.SetTypeName}}) Range(f func({{.MapKeyTypeName}}) bool) {
 	s.backingMap.Range(func(k {{.MapKeyTypeName}}, _ {{.MapValueTypeName}}) bool {
 		return f(k)
 	})
@@ -700,8 +679,17 @@ func (s *{{.VectorTypeName}}Slice) Slice(start, stop int) *{{.VectorTypeName}}Sl
 	return &{{.VectorTypeName}}Slice{vector: s.vector, start: s.start + start, stop: s.start + stop}
 }
 
-func (s *{{.VectorTypeName}}Slice) Iter() *{{.VectorTypeName}}Iterator {
-	return new{{.VectorTypeName}}Iterator(s.vector, s.start, s.stop)
+func (s *{{.VectorTypeName}}Slice) Range(f func({{.TypeName}}) bool) {
+	var currentNode []{{.TypeName}}
+	for i := uint(s.start); i < uint(s.stop); i++ {
+		if i&shiftBitMask == 0 || i == uint(s.start) {
+			currentNode = s.vector.sliceFor(uint(i))
+		}
+
+		if !f(currentNode[i&shiftBitMask]) {
+			return
+		}
+	}
 }
 
 `
@@ -851,38 +839,17 @@ func (v *{{.VectorTypeName}}) Len() int {
 	return int(v.len)
 }
 
-func (v *{{.VectorTypeName}}) Iter() *{{.VectorTypeName}}Iterator {
-	return new{{.VectorTypeName}}Iterator(v, 0, v.Len())
-}
+func (v *{{.VectorTypeName}}) Range(f func({{.TypeName}}) bool) {
+	var currentNode []{{.TypeName}}
+	for i := uint(0); i < v.len; i++ {
+		if i&shiftBitMask == 0 {
+			currentNode = v.sliceFor(uint(i))
+		}
 
-//////////////////
-//// Iterator ////
-//////////////////
-
-type {{.VectorTypeName}}Iterator struct {
-	vector      *{{.VectorTypeName}}
-	currentNode []{{.TypeName}}
-	stop, pos   int
-}
-
-func new{{.VectorTypeName}}Iterator(vector *{{.VectorTypeName}}, start, stop int) *{{.VectorTypeName}}Iterator {
-	it := {{.VectorTypeName}}Iterator{vector: vector, pos: start, stop: stop}
-	it.currentNode = vector.sliceFor(uint(it.pos))
-	return &it
-}
-
-func (it *{{.VectorTypeName}}Iterator) Next() (value {{.TypeName}}, ok bool) {
-	if it.pos >= it.stop {
-		return value, false
+		if !f(currentNode[i&shiftBitMask]) {
+			return
+		}
 	}
-
-	if it.pos&shiftBitMask == 0 {
-		it.currentNode = it.vector.sliceFor(uint(it.pos))
-	}
-
-	value = it.currentNode[it.pos&shiftBitMask]
-	it.pos++
-	return value, true
 }
 
 `
