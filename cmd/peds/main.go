@@ -86,6 +86,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	*vectors = strings.Join(strings.Fields(*vectors), "")
 	if *vectors != "" {
 		vectorSpecs, err := parseVectorSpecs(*vectors)
 		if err != nil {
@@ -104,6 +105,7 @@ func main() {
 		}
 	}
 
+	*maps = strings.Join(strings.Fields(*maps), "")
 	if *maps != "" {
 		mapSpecs, err := parseMapSpecs(*maps)
 		if err != nil {
@@ -122,6 +124,7 @@ func main() {
 		}
 	}
 
+	*sets = strings.Join(strings.Fields(*sets), "")
 	if *sets != "" {
 		setSpecs, err := parseSetSpecs(*sets)
 		if err != nil {
