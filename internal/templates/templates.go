@@ -2,7 +2,6 @@ package templates
 
 // NOTE: This file is auto generated, don't edit manually!
 const CommonTemplate string = `
-// TODO: Need a way to specify imports required by different pieces of the code
 import (
 	"encoding/binary"
 	"fmt"
@@ -705,8 +704,8 @@ type {{.VectorTypeName}} struct {
 	shift uint
 }
 
-var empty{{.TypeName}}Tail = make([]{{.TypeName}}, 0)
-var empty{{.VectorTypeName}} *{{.VectorTypeName}} = &{{.VectorTypeName}}{root: emptyCommonNode, shift: shiftSize, tail: empty{{.TypeName}}Tail}
+var empty{{.VectorTypeName}}Tail = make([]{{.TypeName}}, 0)
+var empty{{.VectorTypeName}} *{{.VectorTypeName}} = &{{.VectorTypeName}}{root: emptyCommonNode, shift: shiftSize, tail: empty{{.VectorTypeName}}Tail}
 
 func New{{.VectorTypeName}}(items ...{{.TypeName}}) *{{.VectorTypeName}} {
 	return empty{{.VectorTypeName}}.Append(items...)

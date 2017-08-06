@@ -2,6 +2,7 @@ package peds_testing
 
 import (
 	"fmt"
+	"github.com/tobgu/peds/tests/subpackage2"
 	"runtime"
 	"strings"
 	"testing"
@@ -323,6 +324,16 @@ func TestSliceSliceOutOfBounds(t *testing.T) {
 			NewIntVector(inputSlice(0, 10)...).Slice(2, 5).Slice(s.start, s.stop)
 		})
 	}
+}
+
+func TestTypesFromOtherPackage(t *testing.T) {
+	v := NewImportVector(1, 2, 3)
+	assertEqual(t, 3, v.Len())
+}
+
+func TestVectorInOtherPackage(t *testing.T) {
+	v := subpackage2.NewOtherVector(1, 2, 3)
+	assertEqual(t, 3, v.Len())
 }
 
 // TODO:

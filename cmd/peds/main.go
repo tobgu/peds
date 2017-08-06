@@ -35,20 +35,18 @@ func logAndExit(err error) {
 }
 
 func main() {
-	// TODO: - imports
-	//       - Documentation
+	// TODO: - Documentation
 	//       - Experience report
 	//       - Clean up/unify naming, template generation?
 	//       - Review public/private functions and types
 
 	flagSet := flag.NewFlagSet("server", flag.ExitOnError)
 	var (
-		maps = flagSet.String("maps", "", "Map1<int,string>;Map2<float,int>")
-		sets = flagSet.String("sets", "", "Set1<int>")
-		//		imports = flagSet.String("imports", "", "import1;import2")
-
 		vectors = flagSet.String("vectors", "", "Vec1<int>")
+		maps    = flagSet.String("maps", "", "Map1<int,string>;Map2<float,int>")
+		sets    = flagSet.String("sets", "", "Set1<int>")
 		file    = flagSet.String("file", "", "path/to/file.go")
+		imports = flagSet.String("imports", "", "import1;import2")
 		pkg     = flagSet.String("pkg", "", "package_name")
 	)
 
@@ -59,7 +57,7 @@ func main() {
 
 	buf := &bytes.Buffer{}
 
-	if err := renderCommon(buf, *pkg); err != nil {
+	if err := renderCommon(buf, *pkg, *imports); err != nil {
 		logAndExit(err)
 	}
 
@@ -114,11 +112,22 @@ func renderTemplates(specs []templateSpec, templateData interface{}, dst io.Writ
 /// Common ///
 //////////////
 
-func renderCommon(buf *bytes.Buffer, pkgName string) error {
+func renderCommon(buf *bytes.Buffer, pkgName, imports string) error {
+	importTemplate := `{{if .Imports}}
+	import (
+	{{range $imp := .Imports}}
+		"{{$imp}}"
+	{{end}}
+	)
+	{{end}}`
+
+	imports = removeWhiteSpaces(imports)
+	pkgName = removeWhiteSpaces(pkgName)
 	return renderTemplates([]templateSpec{
-		{name: "pkg", template: "package {{.PackageName}}\n"},
+		{name: "pkg", template: "package {{index .PackageName 0}}\n"},
+		{name: "imports", template: importTemplate},
 		{name: "common", template: templates.CommonTemplate}},
-		map[string]string{"PackageName": pkgName}, buf)
+		map[string][]string{"PackageName": {pkgName}, "Imports": strings.Split(imports, ";")}, buf)
 }
 
 //////////////

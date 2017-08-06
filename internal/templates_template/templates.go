@@ -2,7 +2,6 @@ package templates_template
 
 //template:CommonTemplate
 
-// TODO: Need a way to specify imports required by different pieces of the code
 import (
 	"encoding/binary"
 	"fmt"
@@ -151,8 +150,8 @@ type GenericVectorType struct {
 	shift uint
 }
 
-var emptyGenericTypeTail = make([]GenericType, 0)
-var emptyGenericVectorType *GenericVectorType = &GenericVectorType{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericTypeTail}
+var emptyGenericVectorTypeTail = make([]GenericType, 0)
+var emptyGenericVectorType *GenericVectorType = &GenericVectorType{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericVectorTypeTail}
 
 func NewGenericVectorType(items ...GenericType) *GenericVectorType {
 	return emptyGenericVectorType.Append(items...)
