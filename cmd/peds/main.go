@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/prometheus/common/log"
+	"github.com/pkg/errors"
 	"github.com/tobgu/peds/internal/templates"
 	"go/format"
 	"io"
@@ -17,17 +17,75 @@ import (
 
 func usage(fs *flag.FlagSet) func() {
 	return func() {
-		fmt.Fprintf(os.Stderr, "USAGE\n")
-		fmt.Fprintf(os.Stderr, "peds\n")
-		fmt.Fprintf(os.Stderr, "\n")
-		fmt.Fprintf(os.Stderr, "FLAGS\n")
+		os.Stderr.WriteString("USAGE\n")
+		os.Stderr.WriteString("peds\n\n")
+		os.Stderr.WriteString("FLAGS\n")
 		w := tabwriter.NewWriter(os.Stderr, 0, 2, 2, ' ', 0)
 		fs.VisitAll(func(f *flag.Flag) {
 			fmt.Fprintf(w, "\t-%s %s\t%s\n", f.Name, f.DefValue, f.Usage)
 		})
 		w.Flush()
-		fmt.Fprintf(os.Stderr, "\n")
+		os.Stderr.WriteString("\n")
 	}
+}
+
+func logAndExit(err error) {
+	fmt.Fprint(os.Stderr, "Error: ", err, "\n")
+	os.Exit(1)
+}
+
+func main() {
+	// TODO: - imports
+	//       - Documentation
+	//       - Experience report
+	//       - Clean up/unify naming, template generation?
+	//       - Review public/private functions and types
+
+	flagSet := flag.NewFlagSet("server", flag.ExitOnError)
+	var (
+		maps = flagSet.String("maps", "", "Map1<int,string>;Map2<float,int>")
+		sets = flagSet.String("sets", "", "Set1<int>")
+		//		imports = flagSet.String("imports", "", "import1;import2")
+
+		vectors = flagSet.String("vectors", "", "Vec1<int>")
+		file    = flagSet.String("file", "", "path/to/file.go")
+		pkg     = flagSet.String("pkg", "", "package_name")
+	)
+
+	flagSet.Usage = usage(flagSet)
+	if err := flagSet.Parse(os.Args[1:]); err != nil {
+		logAndExit(err)
+	}
+
+	buf := &bytes.Buffer{}
+
+	if err := renderCommon(buf, *pkg); err != nil {
+		logAndExit(err)
+	}
+
+	if err := renderVectors(buf, *vectors); err != nil {
+		logAndExit(err)
+	}
+
+	if err := renderMaps(buf, *maps); err != nil {
+		logAndExit(err)
+	}
+
+	if err := renderSet(buf, *sets); err != nil {
+		logAndExit(err)
+	}
+
+	if err := writeFile(buf, *file); err != nil {
+		logAndExit(err)
+	}
+}
+
+///////////////
+/// Helpers ///
+///////////////
+
+func removeWhiteSpaces(s string) string {
+	return strings.Join(strings.Fields(s), "")
 }
 
 type templateSpec struct {
@@ -52,110 +110,44 @@ func renderTemplates(specs []templateSpec, templateData interface{}, dst io.Writ
 	return nil
 }
 
-func main() {
-	// TODO: - imports
-	//       - Handle white spaces
-	//       - Documentation
-	//       - Experience report
-	//       - Clean up this file
-	//       - Clean up/unify naming, template generation?
-	//       - Review public/private functions and types
+//////////////
+/// Common ///
+//////////////
 
-	flagset := flag.NewFlagSet("server", flag.ExitOnError)
-	var (
-		maps = flagset.String("maps", "", "Map1<int,string>;Map2<float,int>")
-		sets = flagset.String("sets", "", "Set1<int>")
-		//		imports = flagset.String("imports", "", "import1;import2")
+func renderCommon(buf *bytes.Buffer, pkgName string) error {
+	return renderTemplates([]templateSpec{
+		{name: "pkg", template: "package {{.PackageName}}\n"},
+		{name: "common", template: templates.CommonTemplate}},
+		map[string]string{"PackageName": pkgName}, buf)
+}
 
-		vectors = flagset.String("vectors", "", "Vec1<int>")
-		file    = flagset.String("file", "", "path/to/file.go")
-		pkg     = flagset.String("pkg", "", "package_name")
-	)
+//////////////
+/// Vector ///
+//////////////
 
-	flagset.Usage = usage(flagset)
-	if err := flagset.Parse(os.Args[1:]); err != nil {
-		log.Fatal(err)
+func renderVectors(buf *bytes.Buffer, vectors string) error {
+	vectors = removeWhiteSpaces(vectors)
+	if vectors == "" {
+		return nil
 	}
 
-	buf := bytes.Buffer{}
-	err := renderTemplates([]templateSpec{
-		{name: "pkg", template: "package {{.PackageName}}\n"}, {name: "common", template: templates.CommonTemplate}},
-		map[string]string{"PackageName": *pkg}, &buf)
-
+	vectorSpecs, err := parseVectorSpecs(vectors)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	*vectors = strings.Join(strings.Fields(*vectors), "")
-	if *vectors != "" {
-		vectorSpecs, err := parseVectorSpecs(*vectors)
+	for _, spec := range vectorSpecs {
+		err := renderTemplates([]templateSpec{
+			{name: "vector", template: templates.VectorTemplate},
+			{name: "slice", template: templates.SliceTemplate}},
+			spec, buf)
+
 		if err != nil {
-			log.Fatal(err)
-		}
-
-		for _, spec := range vectorSpecs {
-			err := renderTemplates([]templateSpec{
-				{name: "vector", template: templates.VectorTemplate},
-				{name: "slice", template: templates.SliceTemplate}},
-				spec, &buf)
-
-			if err != nil {
-				log.Fatal(err)
-			}
+			return err
 		}
 	}
 
-	*maps = strings.Join(strings.Fields(*maps), "")
-	if *maps != "" {
-		mapSpecs, err := parseMapSpecs(*maps)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		for _, spec := range mapSpecs {
-			err := renderTemplates([]templateSpec{
-				{name: "private_map_template", template: templates.PrivateMapTemplate},
-				{name: "public_map_template", template: templates.PublicMapTemplate}},
-				spec, &buf)
-
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-
-	*sets = strings.Join(strings.Fields(*sets), "")
-	if *sets != "" {
-		setSpecs, err := parseSetSpecs(*sets)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		for _, spec := range setSpecs {
-			err := renderTemplates([]templateSpec{
-				{name: "private_map_template", template: templates.PrivateMapTemplate},
-				{name: "set_template", template: templates.SetTemplate}},
-				spec, &buf)
-
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-
-	f, err := os.Create(*file)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	src := buf.Bytes()
-	src, err = format.Source(src)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	f.Write(src)
+	return nil
 }
 
 type vectorSpec struct {
@@ -177,6 +169,35 @@ func parseVectorSpecs(vectorDescriptor string) ([]vectorSpec, error) {
 	}
 
 	return result, nil
+}
+
+///////////
+/// Map ///
+///////////
+
+func renderMaps(buf *bytes.Buffer, maps string) error {
+	maps = removeWhiteSpaces(maps)
+	if maps == "" {
+		return nil
+	}
+
+	mapSpecs, err := parseMapSpecs(maps)
+	if err != nil {
+		return err
+	}
+
+	for _, spec := range mapSpecs {
+		err := renderTemplates([]templateSpec{
+			{name: "private_map_template", template: templates.PrivateMapTemplate},
+			{name: "public_map_template", template: templates.PublicMapTemplate}},
+			spec, buf)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type mapSpec struct {
@@ -216,6 +237,35 @@ func parseMapSpecs(mapDescriptor string) ([]mapSpec, error) {
 	return result, nil
 }
 
+///////////
+/// Set ///
+///////////
+
+func renderSet(buf *bytes.Buffer, sets string) error {
+	sets = strings.Join(strings.Fields(sets), "")
+	if sets == "" {
+		return nil
+	}
+
+	setSpecs, err := parseSetSpecs(sets)
+	if err != nil {
+		return err
+	}
+
+	for _, spec := range setSpecs {
+		err := renderTemplates([]templateSpec{
+			{name: "private_map_template", template: templates.PrivateMapTemplate},
+			{name: "set_template", template: templates.SetTemplate}},
+			spec, buf)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return err
+}
+
 type setSpec struct {
 	mapSpec
 	SetTypeName string
@@ -240,4 +290,30 @@ func parseSetSpecs(setDescriptor string) ([]setSpec, error) {
 	}
 
 	return result, nil
+}
+
+////////////
+/// File ///
+////////////
+
+func writeFile(buf *bytes.Buffer, file string) error {
+	if file == "" {
+		return errors.New("Output file must be specified")
+	}
+
+	f, err := os.Create(file)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// The equivalent of "go fmt" before writing content
+	src := buf.Bytes()
+	src, err = format.Source(src)
+	if err != nil {
+		return err
+	}
+
+	_, err = f.Write(src)
+	return err
 }
