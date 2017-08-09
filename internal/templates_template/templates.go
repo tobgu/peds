@@ -288,13 +288,22 @@ func (v *GenericVectorType) Range(f func(GenericType) bool) {
 	var currentNode []GenericType
 	for i := uint(0); i < v.len; i++ {
 		if i&shiftBitMask == 0 {
-			currentNode = v.sliceFor(uint(i))
+			currentNode = v.sliceFor(i)
 		}
 
 		if !f(currentNode[i&shiftBitMask]) {
 			return
 		}
 	}
+}
+
+func (v *GenericVectorType) ToNativeSlice() []GenericType {
+	result := make([]GenericType, 0, v.len)
+	for i := uint(0); i < v.len; i += nodeSize {
+		result = append(result, v.sliceFor(i)...)
+	}
+
+	return result
 }
 
 //template:SliceTemplate

@@ -842,13 +842,22 @@ func (v *{{.VectorTypeName}}) Range(f func({{.TypeName}}) bool) {
 	var currentNode []{{.TypeName}}
 	for i := uint(0); i < v.len; i++ {
 		if i&shiftBitMask == 0 {
-			currentNode = v.sliceFor(uint(i))
+			currentNode = v.sliceFor(i)
 		}
 
 		if !f(currentNode[i&shiftBitMask]) {
 			return
 		}
 	}
+}
+
+func (v *{{.VectorTypeName}}) ToNativeSlice() []{{.TypeName}} {
+	result := make([]{{.TypeName}}, 0, v.len)
+	for i := uint(0); i < v.len; i += nodeSize {
+		result = append(result, v.sliceFor(i)...)
+	}
+
+	return result
 }
 
 `

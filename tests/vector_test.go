@@ -336,6 +336,23 @@ func TestVectorInOtherPackage(t *testing.T) {
 	assertEqual(t, 3, v.Len())
 }
 
+func TestToNativeVector(t *testing.T) {
+	lengths := []int{0, 1, 7, 32, 512, 1000}
+	for _, length := range lengths {
+		t.Run(fmt.Sprintf("length=%d", length), func(t *testing.T) {
+			inputS := inputSlice(0, length)
+			v := NewIntVector(inputS...)
+
+			outputS := v.ToNativeSlice()
+
+			assertEqual(t, len(inputS), len(outputS))
+			for i := range outputS {
+				assertEqual(t, inputS[i], outputS[i])
+			}
+		})
+	}
+}
+
 // TODO:
 // - Document public types and methods
 // - Expand README with examples
