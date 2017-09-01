@@ -17,9 +17,10 @@ import (
 
 func usage(fs *flag.FlagSet) func() {
 	return func() {
+		os.Stderr.WriteString("Generate statically type safe code for persistent data structures.\n\n")
 		os.Stderr.WriteString("USAGE\n")
 		os.Stderr.WriteString("peds\n\n")
-		os.Stderr.WriteString("FLAGS\n")
+		os.Stderr.WriteString("FLAGS        EXAMPLE\n")
 		w := tabwriter.NewWriter(os.Stderr, 0, 2, 2, ' ', 0)
 		fs.VisitAll(func(f *flag.Flag) {
 			fmt.Fprintf(w, "\t-%s %s\t%s\n", f.Name, f.DefValue, f.Usage)
