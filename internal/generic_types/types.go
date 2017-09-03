@@ -1,4 +1,4 @@
-package templates_template
+package generic_types
 
 // GenericType is a placeholder for types contained in vectors or slices.
 type GenericType int

@@ -1,4 +1,4 @@
-package templates_template
+package generic_types
 
 //template:CommonTemplate
 

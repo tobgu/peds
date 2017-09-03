@@ -1,7 +1,7 @@
 
 if __name__ == "__main__":
     template_start_mark = '//template:'
-    input_file_name = 'internal/templates_template/templates.go'
+    input_file_name = 'internal/generic_types/templates.go'
     output_file_name = 'internal/templates/templates.go'
     template_package_name = 'templates'
     generic_types = {'GenericVectorType': 'VectorTypeName',
