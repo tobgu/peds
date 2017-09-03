@@ -30,17 +30,13 @@ func usage(fs *flag.FlagSet) func() {
 	}
 }
 
-func logAndExit(err error) {
-	fmt.Fprint(os.Stderr, "Error: ", err, "\n")
+func logAndExit(err error, flagSet *flag.FlagSet) {
+	fmt.Fprint(os.Stderr, "Error: ", err, "\n\n")
+	flagSet.Usage()
 	os.Exit(1)
 }
 
 func main() {
-	// TODO: - Documentation
-	//       - Experience report
-	//       - Clean up/unify naming, template generation?
-	//       - Review public/private functions and types
-
 	flagSet := flag.NewFlagSet("server", flag.ExitOnError)
 	var (
 		vectors = flagSet.String("vectors", "", "Vec1<int>")
@@ -53,29 +49,29 @@ func main() {
 
 	flagSet.Usage = usage(flagSet)
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
-		logAndExit(err)
+		logAndExit(err, flagSet)
 	}
 
 	buf := &bytes.Buffer{}
 
 	if err := renderCommon(buf, *pkg, *imports); err != nil {
-		logAndExit(err)
+		logAndExit(err, flagSet)
 	}
 
 	if err := renderVectors(buf, *vectors); err != nil {
-		logAndExit(err)
+		logAndExit(err, flagSet)
 	}
 
 	if err := renderMaps(buf, *maps); err != nil {
-		logAndExit(err)
+		logAndExit(err, flagSet)
 	}
 
 	if err := renderSet(buf, *sets); err != nil {
-		logAndExit(err)
+		logAndExit(err, flagSet)
 	}
 
 	if err := writeFile(buf, *file); err != nil {
-		logAndExit(err)
+		logAndExit(err, flagSet)
 	}
 }
 
@@ -198,7 +194,7 @@ func renderMaps(buf *bytes.Buffer, maps string) error {
 
 	for _, spec := range mapSpecs {
 		err := renderTemplates([]templateSpec{
-			{name: "private_map_template", template: templates.PrivateMapTemplate},
+			{name: "map_template", template: templates.PrivateMapTemplate},
 			{name: "public_map_template", template: templates.PublicMapTemplate}},
 			spec, buf)
 

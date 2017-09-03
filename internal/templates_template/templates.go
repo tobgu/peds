@@ -143,6 +143,8 @@ func float32Hash(x float32) uint32 {
 /// Vector ///
 //////////////
 
+// A GenericVectorType is an ordered persistent/immutable collection of items corresponding roughly
+// to the use cases for a slice.
 type GenericVectorType struct {
 	tail  []GenericType
 	root  commonNode
@@ -153,10 +155,12 @@ type GenericVectorType struct {
 var emptyGenericVectorTypeTail = make([]GenericType, 0)
 var emptyGenericVectorType *GenericVectorType = &GenericVectorType{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericVectorTypeTail}
 
+// NewGenericVectorType returns a new GenericVectorType containing the items provided in items.
 func NewGenericVectorType(items ...GenericType) *GenericVectorType {
 	return emptyGenericVectorType.Append(items...)
 }
 
+// Get returns the element at position i.
 func (v *GenericVectorType) Get(i int) GenericType {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
@@ -186,6 +190,7 @@ func (v *GenericVectorType) tailOffset() uint {
 	return ((v.len - 1) >> shiftSize) << shiftSize
 }
 
+// Set returns a new vector with the element at position i set to item.
 func (v *GenericVectorType) Set(i int, item GenericType) *GenericVectorType {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
@@ -235,6 +240,7 @@ func (v *GenericVectorType) pushTail(level uint, parent commonNode, tailNode []G
 	return ret
 }
 
+// Append returns a new vector with item(s) appended to it.
 func (v *GenericVectorType) Append(item ...GenericType) *GenericVectorType {
 	result := v
 	itemLen := uint(len(item))
@@ -275,15 +281,19 @@ func (v *GenericVectorType) pushLeafNode(node []GenericType) *GenericVectorType 
 	return &GenericVectorType{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
 }
 
+// Slice returns a GenericVectorTypeSlice that refers to all elements [start,stop) in v.
 func (v *GenericVectorType) Slice(start, stop int) *GenericVectorTypeSlice {
 	assertSliceOk(start, stop, v.Len())
 	return &GenericVectorTypeSlice{vector: v, start: start, stop: stop}
 }
 
+// Len returns the length of v.
 func (v *GenericVectorType) Len() int {
 	return int(v.len)
 }
 
+// Range calls f repeatedly passing it each element in v in order as argument until either
+// all elements have been visited or f returns false.
 func (v *GenericVectorType) Range(f func(GenericType) bool) {
 	var currentNode []GenericType
 	for i := uint(0); i < v.len; i++ {
@@ -297,6 +307,7 @@ func (v *GenericVectorType) Range(f func(GenericType) bool) {
 	}
 }
 
+// ToNativeSlice returns a Go slice containing all elements of v
 func (v *GenericVectorType) ToNativeSlice() []GenericType {
 	result := make([]GenericType, 0, v.len)
 	for i := uint(0); i < v.len; i += nodeSize {
@@ -312,19 +323,23 @@ func (v *GenericVectorType) ToNativeSlice() []GenericType {
 //// Slice /////
 ////////////////
 
+// GenericVectorTypeSlice is a slice type backed by a GenericVectorType.
 type GenericVectorTypeSlice struct {
 	vector      *GenericVectorType
 	start, stop int
 }
 
+// NewGenericVectorTypeSlice returns a new NewGenericVectorTypeSlice containing the items provided in items.
 func NewGenericVectorTypeSlice(items ...GenericType) *GenericVectorTypeSlice {
 	return &GenericVectorTypeSlice{vector: emptyGenericVectorType.Append(items...), start: 0, stop: len(items)}
 }
 
+// Len returns the length of s.
 func (s *GenericVectorTypeSlice) Len() int {
 	return s.stop - s.start
 }
 
+// Get returns the element at position i.
 func (s *GenericVectorTypeSlice) Get(i int) GenericType {
 	if i < 0 || s.start+i >= s.stop {
 		panic("Index out of bounds")
@@ -333,6 +348,7 @@ func (s *GenericVectorTypeSlice) Get(i int) GenericType {
 	return s.vector.Get(s.start + i)
 }
 
+// Set returns a new slice with the element at position i set to item.
 func (s *GenericVectorTypeSlice) Set(i int, item GenericType) *GenericVectorTypeSlice {
 	if i < 0 || s.start+i >= s.stop {
 		panic("Index out of bounds")
@@ -341,6 +357,7 @@ func (s *GenericVectorTypeSlice) Set(i int, item GenericType) *GenericVectorType
 	return s.vector.Set(s.start+i, item).Slice(s.start, s.stop)
 }
 
+// Append returns a new slice with item(s) appended to it.
 func (s *GenericVectorTypeSlice) Append(items ...GenericType) *GenericVectorTypeSlice {
 	newSlice := GenericVectorTypeSlice{vector: s.vector, start: s.start, stop: s.stop + len(items)}
 
@@ -357,11 +374,14 @@ func (s *GenericVectorTypeSlice) Append(items ...GenericType) *GenericVectorType
 	return &newSlice
 }
 
+// Slice returns a GenericVectorTypeSlice that refers to all elements [start,stop) in s.
 func (s *GenericVectorTypeSlice) Slice(start, stop int) *GenericVectorTypeSlice {
 	assertSliceOk(start, stop, s.stop-s.start)
 	return &GenericVectorTypeSlice{vector: s.vector, start: s.start + start, stop: s.start + stop}
 }
 
+// Range calls f repeatedly passing it each element in s in order as argument until either
+// all elements have been visited or f returns false.
 func (s *GenericVectorTypeSlice) Range(f func(GenericType) bool) {
 	var currentNode []GenericType
 	for i := uint(s.start); i < uint(s.stop); i++ {
@@ -381,29 +401,28 @@ func (s *GenericVectorTypeSlice) Range(f func(GenericType) bool) {
 /// Map ///
 ///////////
 
-/////////////////////
+//////////////////////
 /// Backing vector ///
-/////////////////////
+//////////////////////
 
-type GenericMapItemBucketVector struct {
-	tail  []GenericMapItemBucket
+type privateGenericMapItemBucketVector struct {
+	tail  []privateGenericMapItemBucket
 	root  commonNode
 	len   uint
 	shift uint
 }
 
-// TODO: Perhaps make this private?
 type GenericMapItem struct {
 	Key   GenericMapKeyType
 	Value GenericMapValueType
 }
 
-type GenericMapItemBucket []GenericMapItem
+type privateGenericMapItemBucket []GenericMapItem
 
-var emptyGenericMapItemBucketVectorTail = make([]GenericMapItemBucket, 0)
-var emptyGenericMapItemBucketVector *GenericMapItemBucketVector = &GenericMapItemBucketVector{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericMapItemBucketVectorTail}
+var emptyGenericMapItemBucketVectorTail = make([]privateGenericMapItemBucket, 0)
+var emptyGenericMapItemBucketVector *privateGenericMapItemBucketVector = &privateGenericMapItemBucketVector{root: emptyCommonNode, shift: shiftSize, tail: emptyGenericMapItemBucketVectorTail}
 
-func (v *GenericMapItemBucketVector) Get(i int) GenericMapItemBucket {
+func (v *privateGenericMapItemBucketVector) Get(i int) privateGenericMapItemBucket {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
 	}
@@ -411,7 +430,7 @@ func (v *GenericMapItemBucketVector) Get(i int) GenericMapItemBucket {
 	return v.sliceFor(uint(i))[i&shiftBitMask]
 }
 
-func (v *GenericMapItemBucketVector) sliceFor(i uint) []GenericMapItemBucket {
+func (v *privateGenericMapItemBucketVector) sliceFor(i uint) []privateGenericMapItemBucket {
 	if i >= v.tailOffset() {
 		return v.tail
 	}
@@ -421,10 +440,10 @@ func (v *GenericMapItemBucketVector) sliceFor(i uint) []GenericMapItemBucket {
 		node = node.([]commonNode)[(i>>level)&shiftBitMask]
 	}
 
-	return node.([]GenericMapItemBucket)
+	return node.([]privateGenericMapItemBucket)
 }
 
-func (v *GenericMapItemBucketVector) tailOffset() uint {
+func (v *privateGenericMapItemBucketVector) tailOffset() uint {
 	if v.len < nodeSize {
 		return 0
 	}
@@ -432,25 +451,25 @@ func (v *GenericMapItemBucketVector) tailOffset() uint {
 	return ((v.len - 1) >> shiftSize) << shiftSize
 }
 
-func (v *GenericMapItemBucketVector) Set(i int, item GenericMapItemBucket) *GenericMapItemBucketVector {
+func (v *privateGenericMapItemBucketVector) Set(i int, item privateGenericMapItemBucket) *privateGenericMapItemBucketVector {
 	if i < 0 || uint(i) >= v.len {
 		panic("Index out of bounds")
 	}
 
 	if uint(i) >= v.tailOffset() {
-		newTail := make([]GenericMapItemBucket, len(v.tail))
+		newTail := make([]privateGenericMapItemBucket, len(v.tail))
 		copy(newTail, v.tail)
 		newTail[i&shiftBitMask] = item
-		return &GenericMapItemBucketVector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
+		return &privateGenericMapItemBucketVector{root: v.root, tail: newTail, len: v.len, shift: v.shift}
 	}
 
-	return &GenericMapItemBucketVector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
+	return &privateGenericMapItemBucketVector{root: v.doAssoc(v.shift, v.root, uint(i), item), tail: v.tail, len: v.len, shift: v.shift}
 }
 
-func (v *GenericMapItemBucketVector) doAssoc(level uint, node commonNode, i uint, item GenericMapItemBucket) commonNode {
+func (v *privateGenericMapItemBucketVector) doAssoc(level uint, node commonNode, i uint, item privateGenericMapItemBucket) commonNode {
 	if level == 0 {
-		ret := make([]GenericMapItemBucket, nodeSize)
-		copy(ret, node.([]GenericMapItemBucket))
+		ret := make([]privateGenericMapItemBucket, nodeSize)
+		copy(ret, node.([]privateGenericMapItemBucket))
 		ret[i&shiftBitMask] = item
 		return ret
 	}
@@ -462,7 +481,7 @@ func (v *GenericMapItemBucketVector) doAssoc(level uint, node commonNode, i uint
 	return ret
 }
 
-func (v *GenericMapItemBucketVector) pushTail(level uint, parent commonNode, tailNode []GenericMapItemBucket) commonNode {
+func (v *privateGenericMapItemBucketVector) pushTail(level uint, parent commonNode, tailNode []privateGenericMapItemBucket) commonNode {
 	subIdx := ((v.len - 1) >> level) & shiftBitMask
 	parentNode := parent.([]commonNode)
 	ret := make([]commonNode, subIdx+1)
@@ -481,7 +500,7 @@ func (v *GenericMapItemBucketVector) pushTail(level uint, parent commonNode, tai
 	return ret
 }
 
-func (v *GenericMapItemBucketVector) Append(item ...GenericMapItemBucket) *GenericMapItemBucketVector {
+func (v *privateGenericMapItemBucketVector) Append(item ...privateGenericMapItemBucket) *privateGenericMapItemBucketVector {
 	result := v
 	itemLen := uint(len(item))
 	for insertOffset := uint(0); insertOffset < itemLen; {
@@ -495,17 +514,17 @@ func (v *GenericMapItemBucketVector) Append(item ...GenericMapItemBucket) *Gener
 		}
 
 		batchLen := uintMin(itemLen-insertOffset, tailFree)
-		newTail := make([]GenericMapItemBucket, 0, tailLen+batchLen)
+		newTail := make([]privateGenericMapItemBucket, 0, tailLen+batchLen)
 		newTail = append(newTail, result.tail...)
 		newTail = append(newTail, item[insertOffset:insertOffset+batchLen]...)
-		result = &GenericMapItemBucketVector{root: result.root, tail: newTail, len: result.len + batchLen, shift: result.shift}
+		result = &privateGenericMapItemBucketVector{root: result.root, tail: newTail, len: result.len + batchLen, shift: result.shift}
 		insertOffset += batchLen
 	}
 
 	return result
 }
 
-func (v *GenericMapItemBucketVector) pushLeafNode(node []GenericMapItemBucket) *GenericMapItemBucketVector {
+func (v *privateGenericMapItemBucketVector) pushLeafNode(node []privateGenericMapItemBucket) *privateGenericMapItemBucketVector {
 	var newRoot commonNode
 	newShift := v.shift
 
@@ -518,15 +537,15 @@ func (v *GenericMapItemBucketVector) pushLeafNode(node []GenericMapItemBucket) *
 		newRoot = v.pushTail(v.shift, v.root, node)
 	}
 
-	return &GenericMapItemBucketVector{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
+	return &privateGenericMapItemBucketVector{root: newRoot, tail: v.tail, len: v.len, shift: newShift}
 }
 
-func (v *GenericMapItemBucketVector) Len() int {
+func (v *privateGenericMapItemBucketVector) Len() int {
 	return int(v.len)
 }
 
-func (v *GenericMapItemBucketVector) Range(f func(GenericMapItemBucket) bool) {
-	var currentNode []GenericMapItemBucket
+func (v *privateGenericMapItemBucketVector) Range(f func(privateGenericMapItemBucket) bool) {
+	var currentNode []privateGenericMapItemBucket
 	for i := uint(0); i < v.len; i++ {
 		if i&shiftBitMask == 0 {
 			currentNode = v.sliceFor(uint(i))
@@ -538,14 +557,11 @@ func (v *GenericMapItemBucketVector) Range(f func(GenericMapItemBucket) bool) {
 	}
 }
 
+// GenericMapType is a persistent key - value map
 type GenericMapType struct {
-	backingVector *GenericMapItemBucketVector
+	backingVector *privateGenericMapItemBucketVector
 	len           int
 }
-
-/////////////////////////
-/// Private functions ///
-/////////////////////////
 
 func (m *GenericMapType) pos(key GenericMapKeyType) int {
 	return int(uint64(genericHash(key)) % uint64(m.backingVector.Len()))
@@ -553,13 +569,13 @@ func (m *GenericMapType) pos(key GenericMapKeyType) int {
 
 // Helper type used during map creation and reallocation
 type privateGenericMapItemBuckets struct {
-	buckets []GenericMapItemBucket
+	buckets []privateGenericMapItemBucket
 	length  int
 }
 
 func newPrivateGenericMapItemBuckets(itemCount int) *privateGenericMapItemBuckets {
 	size := int(float64(itemCount)/initialMapLoadFactor) + 1
-	buckets := make([]GenericMapItemBucket, size)
+	buckets := make([]privateGenericMapItemBucket, size)
 	return &privateGenericMapItemBuckets{buckets: buckets}
 }
 
@@ -578,14 +594,14 @@ func (b *privateGenericMapItemBuckets) AddItem(item GenericMapItem) {
 		b.buckets[ix] = append(bucket, GenericMapItem{Key: item.Key, Value: item.Value})
 		b.length++
 	} else {
-		bucket := make(GenericMapItemBucket, 0, int(math.Max(initialMapLoadFactor, 1.0)))
+		bucket := make(privateGenericMapItemBucket, 0, int(math.Max(initialMapLoadFactor, 1.0)))
 		b.buckets[ix] = append(bucket, item)
 		b.length++
 	}
 }
 
 func (b *privateGenericMapItemBuckets) AddItemsFromMap(m *GenericMapType) {
-	m.backingVector.Range(func(bucket GenericMapItemBucket) bool {
+	m.backingVector.Range(func(bucket privateGenericMapItemBucket) bool {
 		for _, item := range bucket {
 			b.AddItem(item)
 		}
@@ -602,10 +618,12 @@ func newGenericMapType(items []GenericMapItem) *GenericMapType {
 	return &GenericMapType{backingVector: emptyGenericMapItemBucketVector.Append(buckets.buckets...), len: buckets.length}
 }
 
+// Len returns the number of items in m.
 func (m *GenericMapType) Len() int {
 	return int(m.len)
 }
 
+// Load returns value identified by key. ok is set to true if key exists in the map, false otherwise.
 func (m *GenericMapType) Load(key GenericMapKeyType) (value GenericMapValueType, ok bool) {
 	bucket := m.backingVector.Get(m.pos(key))
 	if bucket != nil {
@@ -620,6 +638,7 @@ func (m *GenericMapType) Load(key GenericMapKeyType) (value GenericMapValueType,
 	return zeroValue, false
 }
 
+// Store returns a new GenericMapType containing value identified by key.
 func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType) *GenericMapType {
 	// Grow backing vector if load factor is too high
 	if m.Len() >= m.backingVector.Len()*int(upperMapLoadFactor) {
@@ -635,7 +654,7 @@ func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType)
 		for ix, item := range bucket {
 			if item.Key == key {
 				// Overwrite existing item
-				newBucket := make(GenericMapItemBucket, len(bucket))
+				newBucket := make(privateGenericMapItemBucket, len(bucket))
 				copy(newBucket, bucket)
 				newBucket[ix] = GenericMapItem{Key: key, Value: value}
 				return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len}
@@ -643,22 +662,23 @@ func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType)
 		}
 
 		// Add new item to bucket
-		newBucket := make(GenericMapItemBucket, len(bucket), len(bucket)+1)
+		newBucket := make(privateGenericMapItemBucket, len(bucket), len(bucket)+1)
 		copy(newBucket, bucket)
 		newBucket = append(newBucket, GenericMapItem{Key: key, Value: value})
 		return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len + 1}
 	}
 
 	item := GenericMapItem{Key: key, Value: value}
-	newBucket := GenericMapItemBucket{item}
+	newBucket := privateGenericMapItemBucket{item}
 	return &GenericMapType{backingVector: m.backingVector.Set(pos, newBucket), len: m.len + 1}
 }
 
+// Delete returns a new GenericMapType without the element identified by key.
 func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
 	pos := m.pos(key)
 	bucket := m.backingVector.Get(pos)
 	if bucket != nil {
-		newBucket := make(GenericMapItemBucket, 0)
+		newBucket := make(privateGenericMapItemBucket, 0)
 		for _, item := range bucket {
 			if item.Key != key {
 				newBucket = append(newBucket, item)
@@ -688,8 +708,10 @@ func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
 	return m
 }
 
+// Range calls f repeatedly passing it each key and value as argument until either
+// all elements have been visited or f returns false.
 func (m *GenericMapType) Range(f func(GenericMapKeyType, GenericMapValueType) bool) {
-	m.backingVector.Range(func(bucket GenericMapItemBucket) bool {
+	m.backingVector.Range(func(bucket privateGenericMapItemBucket) bool {
 		for _, item := range bucket {
 			if !f(item.Key, item.Value) {
 				return false
@@ -699,6 +721,7 @@ func (m *GenericMapType) Range(f func(GenericMapKeyType, GenericMapValueType) bo
 	})
 }
 
+// ToNativeMap returns a native Go map containing all elements of m.
 func (m *GenericMapType) ToNativeMap() map[GenericMapKeyType]GenericMapValueType {
 	result := make(map[GenericMapKeyType]GenericMapValueType)
 	m.Range(func(key GenericMapKeyType, value GenericMapValueType) bool {
@@ -711,14 +734,16 @@ func (m *GenericMapType) ToNativeMap() map[GenericMapKeyType]GenericMapValueType
 
 //template:PublicMapTemplate
 
-////////////////////////
-/// Public functions ///
-////////////////////////
+////////////////////
+/// Constructors ///
+////////////////////
 
+// NewGenericMapType returns a new GenericMapType containing all items in items.
 func NewGenericMapType(items ...GenericMapItem) *GenericMapType {
 	return newGenericMapType(items)
 }
 
+// NewGenericMapTypeFromNativeMap returns a new GenericMapType containing all items in m.
 func NewGenericMapTypeFromNativeMap(m map[GenericMapKeyType]GenericMapValueType) *GenericMapType {
 	buckets := newPrivateGenericMapItemBuckets(len(m))
 	for key, value := range m {
@@ -730,10 +755,12 @@ func NewGenericMapTypeFromNativeMap(m map[GenericMapKeyType]GenericMapValueType)
 
 //template:SetTemplate
 
+// GenericSetType is a persistent set
 type GenericSetType struct {
 	backingMap *GenericMapType
 }
 
+// NewGenericSetType returns a new GenericSetType containing items.
 func NewGenericSetType(items ...GenericMapKeyType) *GenericSetType {
 	mapItems := make([]GenericMapItem, 0, len(items))
 	var mapValue GenericMapValueType
@@ -744,13 +771,13 @@ func NewGenericSetType(items ...GenericMapKeyType) *GenericSetType {
 	return &GenericSetType{backingMap: newGenericMapType(mapItems)}
 }
 
-// TODO: Variadic?
+// Add returns a new GenericSetType containing item.
 func (s *GenericSetType) Add(item GenericMapKeyType) *GenericSetType {
 	var mapValue GenericMapValueType
 	return &GenericSetType{backingMap: s.backingMap.Store(item, mapValue)}
 }
 
-// TODO: Variadic?
+// Delete returns a new GenericSetType without item.
 func (s *GenericSetType) Delete(item GenericMapKeyType) *GenericSetType {
 	newMap := s.backingMap.Delete(item)
 	if newMap == s.backingMap {
@@ -760,17 +787,21 @@ func (s *GenericSetType) Delete(item GenericMapKeyType) *GenericSetType {
 	return &GenericSetType{backingMap: newMap}
 }
 
+// Contains returns true if item is present in s, false otherwise.
 func (s *GenericSetType) Contains(item GenericMapKeyType) bool {
 	_, ok := s.backingMap.Load(item)
 	return ok
 }
 
+// Range calls f repeatedly passing it each element in s as argument until either
+// all elements have been visited or f returns false.
 func (s *GenericSetType) Range(f func(GenericMapKeyType) bool) {
 	s.backingMap.Range(func(k GenericMapKeyType, _ GenericMapValueType) bool {
 		return f(k)
 	})
 }
 
+// IsSubset returns true if all elements in s are present in other, false otherwise.
 func (s *GenericSetType) IsSubset(other *GenericSetType) bool {
 	if other.Len() < s.Len() {
 		return false
@@ -788,10 +819,13 @@ func (s *GenericSetType) IsSubset(other *GenericSetType) bool {
 	return isSubset
 }
 
+// IsSuperset returns true if all elements in other are present in s, false otherwise.
 func (s *GenericSetType) IsSuperset(other *GenericSetType) bool {
 	return other.IsSubset(s)
 }
 
+// Union returns a new GenericSetType containing all elements present
+// in either s or other.
 func (s *GenericSetType) Union(other *GenericSetType) *GenericSetType {
 	result := s
 
@@ -806,6 +840,7 @@ func (s *GenericSetType) Union(other *GenericSetType) *GenericSetType {
 	return result
 }
 
+// Equals returns true if s and other contains the same elements, false otherwise.
 func (s *GenericSetType) Equals(other *GenericSetType) bool {
 	return s.Len() == other.Len() && s.IsSubset(other)
 }
@@ -823,16 +858,22 @@ func (s *GenericSetType) difference(other *GenericSetType) []GenericMapKeyType {
 	return items
 }
 
+// Difference returns a new GenericSetType containing all elements present
+// in s but not in other.
 func (s *GenericSetType) Difference(other *GenericSetType) *GenericSetType {
 	return NewGenericSetType(s.difference(other)...)
 }
 
+// SymmetricDifference returns a new GenericSetType containing all elements present
+// in either s or other but not both.
 func (s *GenericSetType) SymmetricDifference(other *GenericSetType) *GenericSetType {
 	items := s.difference(other)
 	items = append(items, other.difference(s)...)
 	return NewGenericSetType(items...)
 }
 
+// Intersection returns a new GenericSetType containing all elements present in both
+// s and other.
 func (s *GenericSetType) Intersection(other *GenericSetType) *GenericSetType {
 	items := make([]GenericMapKeyType, 0)
 	s.Range(func(item GenericMapKeyType) bool {
@@ -846,10 +887,12 @@ func (s *GenericSetType) Intersection(other *GenericSetType) *GenericSetType {
 	return NewGenericSetType(items...)
 }
 
+// Len returns the number of elements in s.
 func (s *GenericSetType) Len() int {
 	return s.backingMap.Len()
 }
 
+// ToNativeSlice returns a native Go slice containing all elements of s.
 func (s *GenericSetType) ToNativeSlice() []GenericMapKeyType {
 	items := make([]GenericMapKeyType, 0, s.Len())
 	s.Range(func(item GenericMapKeyType) bool {

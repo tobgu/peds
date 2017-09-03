@@ -1,10 +1,14 @@
-Type safe persistent/immutable data structures for Go.
+Statically type safe persistent/immutable data structures for Go.
 
-An experiment in how close to generics that code generation can take you.
+An experiment in how close to generics that code generation can take
+you.
 
-There's a vector, a map and a set.
+There's a vector, a slice, a map and a set.
 
 Inspired by Clojures data structures and the work done in Pyrsistent for python.
+
+## Installation
+`go get github.com/tobgu/peds/cmd/peds`
 
 ## Usage
 ```
@@ -29,6 +33,16 @@ TODO
 
 There's a separate experience report based on the discoveries made when
 implementing this library in `experience_report.md`.
+
+## Caveats
+* Even though the data structures are immutable by most means it is not
+  possible to use them as keys in hash maps for example. This is because
+  they internally make use of slices, which are not comparable in Go.
+
+## Possible improvements
+* Investigate implementing the Map as a CHAMP tree.
+* Introspection of the contained types possible to
+  refine the hash functions?
 
 Run tests
 ---------
