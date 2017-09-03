@@ -26,8 +26,19 @@ FLAGS        EXAMPLE
   -vectors   Vec1<int>
 ```
 
+## Examples
+
+There are a couple of generated example collections in `examples/collections.go`.
+
+The `go generate` command used can be found in `examples/types.go`.
+
 ## Godoc
+
+#### Generic types
 https://godoc.org/github.com/tobgu/peds/internal/generic_types
+
+#### Generated examples
+https://godoc.org/github.com/tobgu/peds/examples
 
 ## Experiences
 
@@ -45,6 +56,6 @@ implementing this library in `experience_report.md`.
   refine the hash functions?
 * Get rid of Python requirement.
 
-Run tests
----------
-make test
+Regenerate templates and run tests
+----------------------------------
+`make test`
