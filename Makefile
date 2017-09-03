@@ -22,3 +22,8 @@ benchmark_vector:
 benchmark_map:
 	rm tests/*_gen.go
 	cd tests && go generate && go test -bench Map -run=^$
+
+examples:
+	cd examples && go generate
+
+.PHONY: dev_generate build install fmt test benchmark_vector benchmark_map examples

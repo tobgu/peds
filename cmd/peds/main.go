@@ -109,22 +109,31 @@ func renderTemplates(specs []templateSpec, templateData interface{}, dst io.Writ
 /// Common ///
 //////////////
 
-func renderCommon(buf *bytes.Buffer, pkgName, imports string) error {
-	importTemplate := `{{if .Imports}}
-	import (
-	{{range $imp := .Imports}}
-		"{{$imp}}"
-	{{end}}
-	)
-	{{end}}`
-
-	imports = removeWhiteSpaces(imports)
+func renderCommon(buf *bytes.Buffer, pkgName, importsString string) error {
 	pkgName = removeWhiteSpaces(pkgName)
+	if pkgName == "" {
+		return errors.New("pkg is required")
+	}
+
+	importTemplate := `{{if .Imports}}
+import (
+{{range $imp := .Imports}}
+	"{{$imp}}"
+{{end}}
+)
+{{end}}`
+
+	var imports []string = nil
+	importsString = removeWhiteSpaces(importsString)
+	if importsString != "" {
+		imports = strings.Split(importsString, ";")
+	}
+
 	return renderTemplates([]templateSpec{
 		{name: "pkg", template: "package {{index .PackageName 0}}\n"},
 		{name: "imports", template: importTemplate},
 		{name: "common", template: templates.CommonTemplate}},
-		map[string][]string{"PackageName": {pkgName}, "Imports": strings.Split(imports, ";")}, buf)
+		map[string][]string{"PackageName": {pkgName}, "Imports": imports}, buf)
 }
 
 //////////////
@@ -315,11 +324,12 @@ func writeFile(buf *bytes.Buffer, file string) error {
 
 	// The equivalent of "go fmt" before writing content
 	src := buf.Bytes()
-	src, err = format.Source(src)
+	fmtSrc, err := format.Source(src)
 	if err != nil {
-		return err
+		os.Stdout.WriteString(string(src))
+		return errors.Wrap(err, "Format error")
 	}
 
-	_, err = f.Write(src)
+	_, err = f.Write(fmtSrc)
 	return err
 }
