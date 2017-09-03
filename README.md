@@ -43,6 +43,7 @@ implementing this library in `experience_report.md`.
 * Investigate implementing the Map as a CHAMP tree.
 * Introspection of the contained types possible to
   refine the hash functions?
+* Get rid of Python requirement.
 
 Run tests
 ---------

@@ -1,3 +1,5 @@
+// Package generic_types contains underlying Go implementation of types that
+// will be used in text templates to generate specific implementations.
 package generic_types
 
 //template:CommonTemplate
