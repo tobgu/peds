@@ -27,7 +27,7 @@ FLAGS        EXAMPLE
 ```
 
 ## Godoc
-TODO
+https://godoc.org/github.com/tobgu/peds/internal/generic_types
 
 ## Experiences
 
