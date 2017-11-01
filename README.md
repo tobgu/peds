@@ -1,12 +1,10 @@
 Statically type safe persistent/immutable/functional data structures for Go.
 
-An experiment in how close to generics that code generation can take
-you.
-
-There's a vector, a slice, a map and a set.
-
 Inspired by Clojures data structures and the work done in
 [Pyrsistent](https://www.github.com/tobgu/pyrsistent) for Python.
+
+This is an experiment in how close to generics that code generation can take
+you. There's currently a vector, a slice, a map and a set implemented.
 
 ## What's a persistent data structure?
 Despite their name persistent data structures usually don't refer to
@@ -46,6 +44,17 @@ There are a couple of generated example collections in
 
 The `go:generate` command used can be found in [examples/types.go](https://github.com/tobgu/peds/blob/master/examples/types.go).
 
+This illustrates the core usage pattern:
+```
+//go:generate peds -vectors=IntVector<int> -pkg=my_collections -file=collections/my_collections_gen.go
+
+// Create a new vector
+v := my_collections.NewIntVector(1, 2, 3)
+
+// Create a copy of v with the first element set to 55, v is left untouched.
+v2 := v.Set(0, 55)
+```
+
 ## Godoc
 
 #### Generic types
@@ -67,8 +76,10 @@ There's an [experience report](https://github.com/tobgu/peds/blob/master/experie
 * Investigate implementing the Map as a CHAMP tree.
 * Introspection of the contained types possible to
   refine the hash functions?
-* Get rid of Python requirement.
+* Get rid of Python dependency for developing peds (not needed to build or use peds).
 
-Regenerate templates and run tests
-----------------------------------
+## Regenerate templates and run tests
 `make test`
+
+## Want to contribute?
+Great! Write an issue and let the discussions begin! Then file a PR!

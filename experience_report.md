@@ -1,5 +1,5 @@
 # Experience report
-This sums up some of the key experiences and thoughts from this and
+This sums up some of the key experiences and thoughts from [peds](https://github.com/tobgu/peds) and
 other projects that I would like to share as an experience report going
 into the work of Go 2.
 The different subjects described below are listed in the order of
@@ -7,11 +7,12 @@ importance to me. Most important on top, less important towards the
 bottom.
 
 ## Background
-I don't have excessive experience in Go but have used it for this as
+I don't have excessive experience in Go but have used it for this, as
 well as a couple of other projects since about one year. There are
 probably a ton of stuff that could be improved in this project, some
-of which I'm aware (link to TODO) and some which I've not yet come to
-realize. I'm happy to take suggestions and and PRs!
+of which [I'm aware](https://github.com/tobgu/peds#caveats), and some
+which I've not yet come to realize. I'm happy to take suggestions
+and PRs!
 
 As for compiler construction I don't have much experience beyond the
 basics so it may be the case that I make overly simplistic assumptions
@@ -21,11 +22,10 @@ in my comments below. If so, please bear with me and let me know.
 These are some of the reasons I choose to engage with the Go language
 in the first place:
 * Performance, natively compiled with a memory layout which lets you
-  write fast, mechanically sympathetic, programs with low memory overhead.
+  write fast, [mechanically sympathetic](https://dzone.com/articles/mechanical-sympathy), programs with low memory overhead.
 * Quick compilation.
-* Tooling, batteries included. Great profiling and diagnostics tooling
-  comes built in.
-* Garbage collected, makes it possible to move faster and focus on the
+* Great profiling and diagnostics tooling comes built in.
+* Garbage collected, makes it possible to move fast and focus on the
   business problem.
 * A great, and growing, community.
 * A large number of companies heavily invested in Go.
@@ -37,7 +37,7 @@ few things that made me reluctant to use Go in the first place.
 
 I realise that having a small language is an enabler for some of the
 compelling reasons of Go that I've listed above such as quick compile
-times though.
+times and good tooling though.
 
 ## Generics
 The collections in peds are of course a prime example of a data
@@ -46,8 +46,8 @@ language.
 
 ### Writing the code
 When starting the project the choice was between code generation to
-make the collections statically type safe and more efficient and
-interface{} to make life easier for the implementer (me) but throw
+make the collections statically type safe and more efficient, and
+`interface{}` to make life easier for the implementer (me) but throw
 statical type safety and performance over board.
 To me it was like choosing between two evils but in the end I opted
 for the former because of personal preferences. It would also give
@@ -55,45 +55,45 @@ me the chance to explore the pains of writing a code generator.
 
 I knew that I wanted peds to be a standalone binary for generating the
 code as opposed to "generic" code that would then make use of a third
-party library such as genny to generate the code.
+party library such as [genny](https://github.com/cheekybits/genny) to
+generate the code.
 This was mainly a decision based on usability since relying on a
 third party library would be one more thing that the developer
-using peds would have to learn. Also I wanted to have full control
+using peds would have to learn. I also wanted to have full control
 over the inputs to the code generation, something that would not
 be possible with any of the existing tools I looked at.
 
 With that in mind the generic/templated code would have to reside within
 the peds binary. To me that meant the template code would have to be
 template strings (I choose go text templates since they are part of
-the stdlib). But I (the library author) don't want to write all the
-code within strings. That would mean no help from the IDE/editor or
-a lot of other tooling that I'm used to as a Go programmer.
-To solve this the generic code is written as plain Go code with special
-("magic") names for the generic types and functions. This code is then
+the stdlib). But I did not want to write all the
+code within strings. Doing that would mean no help from the IDE/editor or
+any of the other tooling that I'm used to as a Go programmer.
+To solve this the generic code is written as plain Go code with special,
+"magic", names for the generic types and functions. This code is then
 processed by a small Python script that turns it into a number of
-template strings with suitable template variables that are then used
-by the code generator. Peds then uses these template strings,
-substitutes the template variables with data from the command line
-options and outputs the generated code to a file and package of the
-users choice.
+template strings with suitable template variables that are in turn used
+by the code generator. Peds then substitutes the template variables
+with data from the command line options and outputs the generated
+code to a file and package of the users choice.
 
 All this is of course painful for the library author. Beyond the
-initial setup I must keep track of which those magic names are
+initial setup he must keep track of which those magic names are
 where substitution happens.
 For the end user the experience should hopefully be fairly smooth
 though. It's just one command that can be used together with
-go generate.
+`go:generate`.
 
 ### Access control
 Another problem with code generation compared to built in generic
 support is that there is no control of where the generated code ends
-up and that, in the case of containers the generated code must be
+up. In the case of collections the generated code must also be
 aware of the types of the contained data.
 
 In peds this is currently solved by allowing the user to specify
 target file and package together with any imports that may be
 needed within the generated code to access the contained types.
-While it works it feels dirty. All functions, types and data
+While it works, it feels dirty. All functions, types and data
 defined in the generated code is potentially at risk of being
 accessed by code existing in the same package. For peds this weakens
 the promise of immutability somewhat. For the promise to be held
@@ -104,16 +104,16 @@ For the Map there is a requirement on the key, it must be hashable.
 With code generation these kind of requirements
 cannot be properly defined. Furthermore, even though all basic types
 in Go already supports hashing (for use with the native map) this
-functionality is not accessible outside the runtime package (I believe
+functionality is not accessible outside the runtime package. I believe
 this has it's reasons and that it has been done to reduce the number
 of bugs related to code that does not fulfill the contract between
 hash and equality, that said this is an example of decisions in Go
-that sometimes make me feel like a third class citizens in the
-language).
+that sometimes make me feel like a third class citizens of the
+language.
 
 Hashing as implemented in peds right now is very basic. If the key type
 is a recognized as a basic Go type (int, float, string, ...) a custom,
-tailor made, hash function is applied to it. If not then the type is
+tailor made, hash function is applied to it. If not, then the object is
 printed to a string and that string is in turn hashed. Improvements to
 the implementation are certainly possible here.
 
@@ -121,8 +121,22 @@ Ideally though I would like to delegate the hashing to the type that
 is used as key. That would allow it to be implemented efficiently based
 on knowledge that is simply not available to peds.
 
-For this to happen with a generic-like some kind of constraint on the
-generic type would have to be expressed.
+For this to happen with a generic-like collection, some kind of
+constraint on the generic type would have to be expressed.
+
+### API Documentation
+I was choosing between creating documentation for the generic types
+(with the non-standard generic names) or for the concrete, generated,
+implementations. None of them are really good. The generic names
+will never be referred from the user, the concrete types will often be
+quite different from each other. In the end I choose to generated docs
+for both as seen here: https://github.com/tobgu/peds#godoc.
+
+Documentation for APIs taking `interface{}` as parameter is also a bit
+tricky. Since the empty interface doesn't say anything the types
+won't tell anything. This means that the docs have to be more extensive
+(and people may actually have to read them).
+
 
 ### Concluding thoughts
 To support the peds use case in Go two things are needed from a
@@ -141,11 +155,11 @@ peds.Map[K:Hashable, V]
 
 Hashable would state that the type of the key needs to be hashable.
 To me it seems like the current Go interfaces could serve as a perfect
-base for these kind of specifications. While not strictly necessary
+base for these kind of specifications. While not strictly necessary,
 since compilation of the generic type would fail if the `Hash()`
 function was missing, it provides a much clearer contract at no
 cost for the client since Go interfaces are implemented implicitly
-(which is great!).
+(which I think is great!).
 
 ```
 type Hashable interface {
@@ -157,35 +171,40 @@ This would allow the compiler to generate efficient code avoiding
 the runtime indirection usually associated with interface functions
 and potentially inline the code in `Hash()` of the key type.
 
-I want to finish with my view on generics implementation. I'm
-pro the templating approach where specific code is emitted for every
-instance of the generic type/function and no boxing takes place.
-Rust is an example of a language that uses this approach.
+#### Implementation details
+I want to finish with my view on generics implementation. There
+is a great document called (Summary of Go Generics discussions)[https://docs.google.com/document/d/1vrAy9gMpMoS3uaVphB32uVXX4pi-HnNjkMEgyAHX4N4/edit#heading=h.vuko0u3txoew]
+that outlines a bunch of considerations regarding generics in Go. In it
+a number of different approaches are outlined.
 
-I believe boxing/type erasure (as done in Java for example) would undo
+I'm pro the type specialization approach where specific code is emitted
+for every instance of the generic type/function and no boxing takes place.
+Rust and C++ are examples of a languages that use this approach.
+
+I believe boxing (as done in Java for example) would undo
 many possible use cases where generics could be used to write
 "tight"/"performance critical"/"mechanically sympathetic" algorithms or
 data structures.
 In Java this may be OK since there's a JIT that can do all sorts of
-optimizations in runtime while in Go that is not the case.
+optimizations in runtime, in Go that is not the case.
 While I'm all for the mantra of avoiding premature optimization on the
 application level this becomes less and less true the further down the
 stack you go since you have less and less context.
 With the language being in the bottom levels I think performance is key
-to avoid restricting what can be done on higher levels.
+to avoid restricting what can be done on higher levels more than necessary.
 
 With a templating approach the binary will be fatter for sure since more
 code is generated. The Go binaries are already fairly fat though and to
 me, adding a couple of extra % to that does not really matter.
 The negative impact on the instruction cache because of code bloat
-that some claim could be a problem should be tested in reality.
+that some claim as a potential problem should be tested in reality.
 Furthermore, if the compiler/linker only generated code for the functions
 used by the client code as opposed to the full API of the generic
 type my gut feeling is that the code bloat should not be that dramatic
 since in reality many client applications often only use a small subset
 of the provided functionality. This would of course make the compiler
 more complicated and potentially increase compile times but I trust
-the compiler team to solve this. ;-)
+the compiler team will solve this. ;-)
 
 ## Immutability
 With the strong focus on concurrency in Go I was surprised that
@@ -220,7 +239,7 @@ self.
 ### The need for unification
 The use of the `range` keyword to iterate over slices and maps is fine
 I think. The only problem is that it's not possible to use with any
-other data structures.
+other collections than the built in.
 That's why people come up with all sorts of ideas for how to do it. The
 principal ideas are described nicely here:
 https://blog.kowalczyk.info/article/1Bkr/3-ways-to-iterate-in-go.html
@@ -289,11 +308,11 @@ variables which keep track of where in the tree you are.
 When inserting new nodes they are first casted to `commonNode`. There
 is nothing in the type system preventing me from inserting anything
 into a node. Something that would cause other parts of the code to
-fail at runtime. Presumably always far away from the root cause
-since the error would occur in the read path while the root cause was
-introduced in the write.
+fail at runtime. The failre would presumably always manifest itself
+far away from the root cause since the error would occur in the read
+path while the root cause was introduced in the write path.
 
-A sum type containing either an internal node or a leaf node would
+A sum type containing either an internal node or a leaf node could
 help in this situation since it would restrict the possible errors.
 It would also document the tree structure nicely for later maintainers
 something that cannot be said about the commonNode since `interface{}`
@@ -316,7 +335,7 @@ clearly stated which types make up a valid node.
 The con is that it gives the illusion that it's OK to set both fields.
 It also occupies more space than the empty interface and performs
 slightly worse.
-Because of the drawbacks described I decided to discard this experiment.
+Because of these drawbacks I decided to discard this experiment.
 
 ## Set
 I can't believe there's not a built in generic set type in Go 1! Sets
@@ -344,14 +363,15 @@ to implement in Go today. This would make the language more useful in
 areas and domains where it is not used that much today. While as an
 application developer the need for generics may not arise that often,
 I think it would allow a lot of applications to stand on the shoulders
-of giants (great libraries).
+of giants (great libraries) to a much greater extent than what is
+possible today.
 
 Finally I would like to stress the importance (to me) of focusing on
 performance and mechanical sympathy moving forward to avoid that Go
-ends up with the scripting languages where anything performance critical
-has to be implemented as an extension in a differnt language.
-I really want to be able to use Go for everything, all the way from
-the tightest loops and up!
+ends up together with the scripting languages (Python, Ruby, etc) where
+anything performance critical has to be implemented as an extension
+in a different language. I really want to be able to use Go for
+everything, all the way from the tightest loops and up!
 
 Go is a great language with really nice runtime characteristics,
 tooling and a nice deployment story. Lets build on that! :-)
