@@ -622,11 +622,18 @@ func newGenericMapType(items []GenericMapItem) *GenericMapType {
 
 // Len returns the number of items in m.
 func (m *GenericMapType) Len() int {
+	if m == nil {
+		return 0
+	}
 	return int(m.len)
 }
 
 // Load returns value identified by key. ok is set to true if key exists in the map, false otherwise.
 func (m *GenericMapType) Load(key GenericMapKeyType) (value GenericMapValueType, ok bool) {
+	var zeroValue GenericMapValueType
+	if m == nil {
+		return zeroValue, false
+	}
 	bucket := m.backingVector.Get(m.pos(key))
 	if bucket != nil {
 		for _, item := range bucket {
@@ -636,12 +643,15 @@ func (m *GenericMapType) Load(key GenericMapKeyType) (value GenericMapValueType,
 		}
 	}
 
-	var zeroValue GenericMapValueType
 	return zeroValue, false
 }
 
 // Store returns a new GenericMapType containing value identified by key.
 func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType) *GenericMapType {
+	if m == nil {
+		return NewGenericMapType(GenericMapItem{Key: key, Value: value})
+	}
+
 	// Grow backing vector if load factor is too high
 	if m.Len() >= m.backingVector.Len()*int(upperMapLoadFactor) {
 		buckets := newPrivateGenericMapItemBuckets(m.Len() + 1)
@@ -677,6 +687,9 @@ func (m *GenericMapType) Store(key GenericMapKeyType, value GenericMapValueType)
 
 // Delete returns a new GenericMapType without the element identified by key.
 func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
+	if m == nil {
+		return nil
+	}
 	pos := m.pos(key)
 	bucket := m.backingVector.Get(pos)
 	if bucket != nil {
@@ -713,6 +726,9 @@ func (m *GenericMapType) Delete(key GenericMapKeyType) *GenericMapType {
 // Range calls f repeatedly passing it each key and value as argument until either
 // all elements have been visited or f returns false.
 func (m *GenericMapType) Range(f func(GenericMapKeyType, GenericMapValueType) bool) {
+	if m == nil {
+		return
+	}
 	m.backingVector.Range(func(bucket privateGenericMapItemBucket) bool {
 		for _, item := range bucket {
 			if !f(item.Key, item.Value) {

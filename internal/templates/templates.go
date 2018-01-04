@@ -362,11 +362,18 @@ func new{{.MapTypeName}}(items []{{.MapItemTypeName}}) *{{.MapTypeName}} {
 
 // Len returns the number of items in m.
 func (m *{{.MapTypeName}}) Len() int {
+	if m == nil {
+		return 0
+	}
 	return int(m.len)
 }
 
 // Load returns value identified by key. ok is set to true if key exists in the map, false otherwise.
 func (m *{{.MapTypeName}}) Load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeName}}, ok bool) {
+	var zeroValue {{.MapValueTypeName}}
+	if m == nil {
+		return zeroValue, false
+	}
 	bucket := m.backingVector.Get(m.pos(key))
 	if bucket != nil {
 		for _, item := range bucket {
@@ -376,12 +383,15 @@ func (m *{{.MapTypeName}}) Load(key {{.MapKeyTypeName}}) (value {{.MapValueTypeN
 		}
 	}
 
-	var zeroValue {{.MapValueTypeName}}
 	return zeroValue, false
 }
 
 // Store returns a new {{.MapTypeName}} containing value identified by key.
 func (m *{{.MapTypeName}}) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeName}}) *{{.MapTypeName}} {
+	if m == nil {
+		return New{{.MapTypeName}}({{.MapItemTypeName}}{Key: key, Value: value})
+	}
+
 	// Grow backing vector if load factor is too high
 	if m.Len() >= m.backingVector.Len()*int(upperMapLoadFactor) {
 		buckets := newPrivate{{.MapItemTypeName}}Buckets(m.Len() + 1)
@@ -417,6 +427,9 @@ func (m *{{.MapTypeName}}) Store(key {{.MapKeyTypeName}}, value {{.MapValueTypeN
 
 // Delete returns a new {{.MapTypeName}} without the element identified by key.
 func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
+	if m == nil {
+		return nil
+	}
 	pos := m.pos(key)
 	bucket := m.backingVector.Get(pos)
 	if bucket != nil {
@@ -453,6 +466,9 @@ func (m *{{.MapTypeName}}) Delete(key {{.MapKeyTypeName}}) *{{.MapTypeName}} {
 // Range calls f repeatedly passing it each key and value as argument until either
 // all elements have been visited or f returns false.
 func (m *{{.MapTypeName}}) Range(f func({{.MapKeyTypeName}}, {{.MapValueTypeName}}) bool) {
+	if m == nil {
+		return
+	}
 	m.backingVector.Range(func(bucket private{{.MapItemTypeName}}Bucket) bool {
 		for _, item := range bucket {
 			if !f(item.Key, item.Value) {
