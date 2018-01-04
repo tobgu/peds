@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/pkg/errors"
-	"github.com/tobgu/peds/internal/templates"
 	"go/format"
 	"io"
 	"os"
@@ -13,6 +11,9 @@ import (
 	"strings"
 	"text/tabwriter"
 	"text/template"
+
+	"github.com/pkg/errors"
+	"github.com/tobgu/peds/internal/templates"
 )
 
 func usage(fs *flag.FlagSet) func() {
@@ -173,7 +174,7 @@ type vectorSpec struct {
 func parseVectorSpecs(vectorDescriptor string) ([]vectorSpec, error) {
 	result := make([]vectorSpec, 0)
 	descriptors := strings.Split(vectorDescriptor, ";")
-	r := regexp.MustCompile(`([A-Za-z0-9]+)<([A-Za-z0-9.]+)>`)
+	r := regexp.MustCompile(`([A-Za-z0-9]+)<(\*?[A-Za-z0-9.]+)>`)
 	for _, d := range descriptors {
 		m := r.FindStringSubmatch(strings.TrimSpace(d))
 		if len(m) != 3 {
@@ -237,7 +238,7 @@ func hashFunc(typ string) string {
 func parseMapSpecs(mapDescriptor string) ([]mapSpec, error) {
 	result := make([]mapSpec, 0)
 	descriptors := strings.Split(mapDescriptor, ";")
-	r := regexp.MustCompile(`([A-Za-z0-9]+)<([A-Za-z0-9.]+),([A-Za-z0-9.]+)>`)
+	r := regexp.MustCompile(`([A-Za-z0-9]+)<([A-Za-z0-9.]+),(\*?[A-Za-z0-9.]+)>`)
 	for _, d := range descriptors {
 		m := r.FindStringSubmatch(strings.TrimSpace(d))
 		if len(m) != 4 {
@@ -289,7 +290,7 @@ type setSpec struct {
 func parseSetSpecs(setDescriptor string) ([]setSpec, error) {
 	result := make([]setSpec, 0)
 	descriptors := strings.Split(setDescriptor, ";")
-	r := regexp.MustCompile(`([A-Za-z0-9]+)<([A-Za-z0-9.]+)>`)
+	r := regexp.MustCompile(`([A-Za-z0-9]+)<(\*?[A-Za-z0-9.]+)>`)
 	for _, d := range descriptors {
 		m := r.FindStringSubmatch(strings.TrimSpace(d))
 		if len(m) != 3 {
