@@ -5,7 +5,7 @@ build: dev_generate
 	go build github.com/tobgu/peds/cmd/peds/
 
 install: dev_generate
-	go install github.com/tobgu/peds/cmd/peds/
+	go install ./cmd/peds
 
 fmt:
 	go fmt ./...
