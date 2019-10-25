@@ -22,14 +22,14 @@ func assertEqual(t *testing.T, expected, actual int) {
 func assertEqualString(t *testing.T, expected, actual string) {
 	if expected != actual {
 		_, file, line, _ := runtime.Caller(1)
-		t.Errorf("Error %s, line %d. Expected: %d, actual: %d", file, line, expected, actual)
+		t.Errorf("Error %s, line %d. Expected: %v, actual: %v", file, line, expected, actual)
 	}
 }
 
 func assertEqualBool(t *testing.T, expected, actual bool) {
 	if expected != actual {
 		_, file, line, _ := runtime.Caller(1)
-		t.Errorf("Error %s, line %d. Expected: %d, actual: %d", file, line, expected, actual)
+		t.Errorf("Error %s, line %d. Expected: %v, actual: %v", file, line, expected, actual)
 	}
 }
 
