@@ -1,0 +1,1 @@
+Empty package where generated types will go during testing.

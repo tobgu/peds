@@ -11,7 +11,7 @@ fmt:
 	go fmt ./...
 
 test: install
-	rm tests/*_gen.go
+	rm tests/*_gen.go || echo "No previous test files"
 	cd tests && go generate
 	go test ./...
 
