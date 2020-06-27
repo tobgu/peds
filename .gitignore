@@ -1,7 +1,7 @@
 *_gen.go
 .idea
 coverage.*
-peds
+/peds
 *.test
 *.out
 *.prof

@@ -15,6 +15,9 @@ test: install
 	cd tests && go generate
 	go test ./...
 
+go2go-test:
+	GO2PATH=$$(pwd)/go2go go2go test peds
+
 benchmark_vector:
 	rm tests/*_gen.go
 	cd tests && go generate && go test -bench Iteration -run=^$
