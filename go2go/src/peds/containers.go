@@ -9,11 +9,15 @@ import (
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:1
  "fmt"
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:1
+ "math"
+//line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:1
  "runtime"
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:1
  "strings"
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:1
  "testing"
+//line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:1
+ "unsafe"
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:1
 )
 
@@ -66,6 +70,8 @@ type Importable୦ int
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:229
 var _ = fmt.Errorf
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:229
+var _ = math.Abs
+//line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:229
 var _ = runtime.BlockProfile
 
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:229
@@ -73,3 +79,6 @@ type _ strings.Builder
 
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:229
 var _ = testing.AllocsPerRun
+
+//line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:229
+type _ unsafe.Pointer

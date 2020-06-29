@@ -1,0 +1,89 @@
+package peds
+
+import (
+	"math"
+	"unsafe"
+)
+
+const upperMapLoadFactor float64 = 8.0
+const lowerMapLoadFactor float64 = 2.0
+const initialMapLoadFactor float64 = (upperMapLoadFactor + lowerMapLoadFactor) / 2
+
+type MapItem(type K comparable, V interface{}) struct {
+	Key   K
+	Value V
+}
+
+//go:noescape
+//go:linkname nilinterhash runtime.nilinterhash
+func nilinterhash(p unsafe.Pointer, h uintptr) uintptr { return 0 }
+
+// TODO: Try to avoid interfaces for hashing
+func genericHash(x interface{}) uint32 {
+	return uint32(nilinterhash(unsafe.Pointer(&x), 0))
+}
+
+type privateItemBucket(type K comparable, V interface{}) []MapItem(K, V)
+
+// Helper type used during map creation and reallocation
+type privateItemBuckets(type K comparable, V interface{}) struct {
+	buckets []privateItemBucket(K, V)
+	length  int
+}
+
+func newPrivateItemBuckets(type K comparable, V interface{})(itemCount int) *privateItemBuckets(K, V) {
+	size := int(float64(itemCount)/initialMapLoadFactor) + 1
+
+	// TODO: The need for parenthesis below are slightly surprising
+	buckets := make([](privateItemBucket(K, V)), size)
+	return &privateItemBuckets(K, V){buckets: buckets}
+}
+
+type Map(type K comparable, V interface{}) struct {
+	backingVector *Vector(privateItemBucket(K, V))
+	len           int
+}
+
+func (b *privateItemBuckets(K, V)) AddItem(item MapItem(K, V)) {
+	ix := int(uint64(genericHash(item.Key)) % uint64(len(b.buckets)))
+	bucket := b.buckets[ix]
+	if bucket != nil {
+		// Hash collision, merge with existing bucket
+		for keyIx, bItem := range bucket {
+			if item.Key == bItem.Key {
+				bucket[keyIx] = item
+				return
+			}
+		}
+
+		b.buckets[ix] = append(bucket, MapItem(K, V){Key: item.Key, Value: item.Value})
+		b.length++
+	} else {
+		bucket := make(privateItemBucket(K, V), 0, int(math.Max(initialMapLoadFactor, 1.0)))
+		b.buckets[ix] = append(bucket, item)
+		b.length++
+	}
+}
+
+func newMap(type K comparable, V interface{})(items []MapItem(K, V)) *Map(K, V) {
+	buckets := newPrivateItemBuckets(K, V)(len(items))
+	for _, item := range items {
+		buckets.AddItem(item)
+	}
+	return &Map(K, V){backingVector: NewVector(buckets.buckets...), len: buckets.length}
+}
+
+// NewMap returns a new map containing all items in items.
+func NewMap(type K comparable, V interface{})(items ...MapItem(K, V)) *Map(K, V) {
+	return newMap(items)
+}
+
+// NewMapFromNativeMap returns a new Map containing all items in m.
+func NewMapFromNativeMap(type K comparable, V interface{})(m map[K]V) *Map(K, V) {
+	buckets := newPrivateItemBuckets(K, V)(len(m))
+	for key, value := range m {
+		buckets.AddItem(MapItem(K, V){Key: key, Value: value})
+	}
+
+	return &Map(K, V){backingVector: NewVector(buckets.buckets...), len: buckets.length}
+}

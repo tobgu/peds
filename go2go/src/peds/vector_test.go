@@ -9,11 +9,15 @@ import (
 //line /home/tobias/Development/go/peds/go2go/src/peds/vector_test.go2:1
  "fmt"
 //line /home/tobias/Development/go/peds/go2go/src/peds/vector_test.go2:1
+ "math"
+//line /home/tobias/Development/go/peds/go2go/src/peds/vector_test.go2:1
  "runtime"
 //line /home/tobias/Development/go/peds/go2go/src/peds/vector_test.go2:1
  "strings"
 //line /home/tobias/Development/go/peds/go2go/src/peds/vector_test.go2:1
  "testing"
+//line /home/tobias/Development/go/peds/go2go/src/peds/vector_test.go2:1
+ "unsafe"
 //line /home/tobias/Development/go/peds/go2go/src/peds/vector_test.go2:1
 )
 
@@ -234,7 +238,7 @@ func TestSliceSet(t *testing.T) {
 										slice2 := slice.Set(5, 123)
 
 //line /home/tobias/Development/go/peds/go2go/src/peds/vector_test.go2:225
- assertEqual(t, 155, vector.Get(15))
+ assertEqual(t, 15, vector.Get(15))
 	assertEqual(t, 15, slice.Get(5))
 	assertEqual(t, 123, slice2.Get(5))
 }
@@ -656,6 +660,8 @@ func (s *instantiate୦୦VectorSlice୦int,) Range(f func((int),) bool) {
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:301
 var _ = fmt.Errorf
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:301
+var _ = math.Abs
+//line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:301
 var _ = runtime.BlockProfile
 
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:301
@@ -663,3 +669,6 @@ type _ strings.Builder
 
 //line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:301
 var _ = testing.AllocsPerRun
+
+//line /home/tobias/Development/go/peds/go2go/src/peds/containers.go2:301
+type _ unsafe.Pointer
